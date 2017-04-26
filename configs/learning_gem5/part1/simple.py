@@ -37,10 +37,13 @@ IMPORTANT: If you modify this file, it's likely that the Learning gem5 book
 
 """
 
-# import the m5 (gem5) library created when gem5 is built
-import m5
+# import the gem5 library
+import gem5
+# import the simulation library
+from gem5 import simulation
+
 # import all of the SimObjects
-from m5.objects import *
+from gem5.models import *
 
 # create the system we are going to simulate
 system = System()
@@ -67,9 +70,12 @@ system.cpu.dcache_port = system.membus.slave
 # create the interrupt controller for the CPU and connect to the membus
 system.cpu.createInterruptController()
 
+# get ISA for the binary to run.
+isa = str(gem5._m5.defines.buildEnv['TARGET_ISA']).lower()
+
 # For x86 only, make sure the interrupts are connected to the memory
 # Note: these are directly connected to the memory bus and are not cached
-if m5.defines.buildEnv['TARGET_ISA'] == "x86":
+if isa == "x86":
     system.cpu.interrupts[0].pio = system.membus.master
     system.cpu.interrupts[0].int_master = system.membus.slave
     system.cpu.interrupts[0].int_slave = system.membus.master
@@ -81,9 +87,6 @@ system.mem_ctrl.port = system.membus.master
 
 # Connect the system up to the membus
 system.system_port = system.membus.slave
-
-# get ISA for the binary to run.
-isa = str(m5.defines.buildEnv['TARGET_ISA']).lower()
 
 # Run 'hello' and use the compiled ISA to find the binary
 binary = 'tests/test-progs/hello/bin/' + isa + '/linux/hello'
@@ -100,8 +103,9 @@ system.cpu.createThreads()
 # set up the root SimObject and start the simulation
 root = Root(full_system = False, system = system)
 # instantiate all of the objects we've created above
-m5.instantiate()
+simulation.instantiate()
 
 print "Beginning simulation!"
-exit_event = m5.simulate()
-print 'Exiting @ tick %i because %s' % (m5.curTick(), exit_event.getCause())
+exit_event = simulation.simulate()
+print 'Exiting @ tick %i because %s' % (simulation.curTick(),
+                                        exit_event.getCause())

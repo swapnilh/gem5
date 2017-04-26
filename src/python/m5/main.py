@@ -192,12 +192,13 @@ def main(*args):
     import core
     import debug
     import defines
-    import event
     import info
     import stats
     import trace
 
     from util import inform, fatal, panic, isInteractive
+
+    from _m5 import event
 
     if len(args) == 0:
         options, arguments = parse_options()
@@ -215,8 +216,8 @@ def main(*args):
         fatal("Tracing is not enabled.  Compile with TRACING_ON")
 
     # Set the main event queue for the main thread.
-    event.mainq = event.getEventQueue(0)
-    event.setEventQueue(event.mainq)
+    mainq = event.getEventQueue(0)
+    event.curEventQueue(mainq)
 
     if not os.path.isdir(options.outdir):
         os.makedirs(options.outdir)
@@ -379,15 +380,15 @@ def main(*args):
 
     if options.debug_start:
         check_tracing()
-        e = event.create(trace.enable, event.Event.Debug_Enable_Pri)
-        event.mainq.schedule(e, options.debug_start)
+        e = event.PythonEvent(trace.enable, event.Event.Debug_Enable_Pri)
+        mainq.schedule(e, options.debug_start)
     else:
         trace.enable()
 
     if options.debug_end:
         check_tracing()
-        e = event.create(trace.disable, event.Event.Debug_Enable_Pri)
-        event.mainq.schedule(e, options.debug_end)
+        e = event.PythonEvent(trace.disable, event.Event.Debug_Enable_Pri)
+        mainq.schedule(e, options.debug_end)
 
     trace.output(options.debug_file)
 

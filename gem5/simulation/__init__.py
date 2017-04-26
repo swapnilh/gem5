@@ -45,18 +45,19 @@ import os
 import sys
 
 # import the SWIG-wrapped main C++ functions
+from m5 import _m5
 import _m5.drain
 import _m5.core
 from _m5.stats import updateEvents as updateStatEvents
 
-import stats
-import SimObject
-import ticks
-import objects
+from m5 import stats
+from m5 import SimObject
+from m5 import ticks
+from m5 import objects
 from m5.util.dot_writer import do_dot, do_dvfs_dot
 
-from util import fatal
-from util import attrdict
+from m5.util import fatal
+from m5.util import attrdict
 
 # define a MaxTick parameter, unsigned 64 bit
 MaxTick = 2**64 - 1
@@ -99,7 +100,8 @@ def instantiate(ckpt_dir=None):
     if options.json_config:
         try:
             import json
-            json_file = file(os.path.join(options.outdir, options.json_config), 'w')
+            json_file = file(os.path.join(options.outdir, options.json_config),
+                             'w')
             d = root.get_config_as_dict()
             json.dump(d, json_file, indent=4)
             json_file.close()
@@ -145,8 +147,8 @@ def instantiate(ckpt_dir=None):
     else:
         for obj in root.descendants(): obj.initState()
 
-    # Check to see if any of the stat events are in the past after resuming from
-    # a checkpoint, If so, this call will shift them to be at a valid time.
+    # Check to see if any of the stat events are in the past after resuming
+    # from a checkpoint, If so, this call will shift them to be at a valid time
     updateStatEvents()
 
 need_startup = True

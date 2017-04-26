@@ -192,7 +192,7 @@ lastDump = 0
 def dump():
     '''Dump all statistics data to the registered outputs'''
 
-    curTick = m5.curTick()
+    curTick = _m5.core.curTick()
 
     global lastDump
     assert lastDump <= curTick
