@@ -175,6 +175,7 @@ class ThreadPolicy(Enum): vals = ['SingleThreaded', 'RoundRobin', 'Random']
 class MinorCPU(BaseCPU):
     type = 'MinorCPU'
     cxx_header = "cpu/minor/cpu.hh"
+    alias = 'minor'
 
     @classmethod
     def memory_mode(cls):

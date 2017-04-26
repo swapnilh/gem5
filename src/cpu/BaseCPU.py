@@ -43,7 +43,10 @@
 
 import sys
 
+import m5
+
 from m5.defines import buildEnv
+from m5.SimObject import MetaSimObject
 from m5.params import *
 from m5.proxy import *
 
@@ -91,7 +94,39 @@ elif buildEnv['TARGET_ISA'] == 'riscv':
     from RiscvISA import RiscvISA
     isa_class = RiscvISA
 
+class MetaCPU(MetaSimObject):
+    """ Metaclass for all CPUs.
+
+        __init__ is executed for every subclass of BaseCPU. In this metaclass,
+        we collect all of the different CPUs that are derived from BaseCPU to
+        automatically populate command-line parameters.
+
+        This meta class adds one SimObject parameter, alias, which is an alias
+        for the CPU model and will appear on the command line.
+
+        NOTE: This must inherit from the same metaclass as BaseCPU's parent
+              class (i.e., MetaSimObject). If MemObject is updated with a new
+              metaclass, this must inherit from that metaclass.
+    """
+
+    # Create a new dictionary in the m5 module with all of the CPU types
+    m5._cpu_models = {}
+    MetaSimObject.init_keywords['alias'] = str
+
+    def __init__(cls, name, bases, attrs):
+        super(MetaCPU, cls).__init__(name, bases, attrs)
+        if cls.abstract:
+            # Abstract classes shouldn't appear in the list
+            return
+        m5._cpu_models[name] = cls
+        if hasattr(cls, 'alias') and not cls.alias in m5._cpu_models:
+            # NOTE: Base class will always call __init__ first. The alias is
+            # *not* inherited to the deriving class
+            m5._cpu_models[cls.alias] = cls
+
+
 class BaseCPU(MemObject):
+    __metaclass__ = MetaCPU
     type = 'BaseCPU'
     abstract = True
     cxx_header = "cpu/base.hh"

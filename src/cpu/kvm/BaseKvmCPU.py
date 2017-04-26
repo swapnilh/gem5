@@ -45,6 +45,7 @@ class BaseKvmCPU(BaseCPU):
     type = 'BaseKvmCPU'
     cxx_header = "cpu/kvm/base.hh"
     abstract = True
+    alias = 'kvm'
 
     @classmethod
     def export_methods(cls, code):

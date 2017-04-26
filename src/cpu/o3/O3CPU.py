@@ -37,6 +37,7 @@ from BranchPredictor import *
 class DerivO3CPU(BaseCPU):
     type = 'DerivO3CPU'
     cxx_header = 'cpu/o3/deriv.hh'
+    alias = 'detailed'
 
     @classmethod
     def memory_mode(cls):

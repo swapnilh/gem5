@@ -32,6 +32,7 @@ from BaseSimpleCPU import BaseSimpleCPU
 class TimingSimpleCPU(BaseSimpleCPU):
     type = 'TimingSimpleCPU'
     cxx_header = "cpu/simple/timing.hh"
+    alias = 'timing'
 
     @classmethod
     def memory_mode(cls):

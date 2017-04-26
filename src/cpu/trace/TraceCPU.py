@@ -46,6 +46,7 @@ class TraceCPU(BaseCPU):
     """
     type = 'TraceCPU'
     cxx_header = "cpu/trace/trace_cpu.hh"
+    alias = 'trace'
 
     @classmethod
     def memory_mode(cls):
