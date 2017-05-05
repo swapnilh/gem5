@@ -66,11 +66,14 @@ class Daxpy : public BasicPioDevice
         EventWrapper<LoopIteration, &LoopIteration::stage2> runStage2;
         EventWrapper<LoopIteration, &LoopIteration::stage3> runStage3;
         EventWrapper<LoopIteration, &LoopIteration::stage4> runStage4;
+
+        /* Constructor used for all but the first iteration */
         LoopIteration(int i, int step, FuncParams params, Daxpy* accel) :
             i(i), step(step), x(0), y(0), stage(0), params(params),
             accel(accel), runStage2(this), runStage3(this), runStage4(this)
             {stage1();}
       public:
+        /* Constructor used for the first iteration */
         LoopIteration(int step, FuncParams params, Daxpy* accel);
     };
 
@@ -98,6 +101,10 @@ class Daxpy : public BasicPioDevice
     int paramsLoaded;
 
     std::map<Addr, LoopIteration*> addressCallbacks;
+
+    /* Acquires the task Id of the host task,
+     * needed by the cache blocks */
+    uint32_t taskId;
 
   public:
     typedef DaxpyParams Params;
@@ -155,10 +162,10 @@ class Daxpy : public BasicPioDevice
     void recvParam(PacketPtr pkt);
     void executeLoop();
     void recvLoop(PacketPtr pkt);
-    void loopIteration1(LoopIteration *iter);
+/*    void loopIteration1(LoopIteration *iter);
     void loopIteration2(LoopIteration *iter);
     void loopIteration3(LoopIteration *iter);
-    void loopIteration4(LoopIteration *iter);
+    void loopIteration4(LoopIteration *iter);*/
     void sendFinish();
 };
 

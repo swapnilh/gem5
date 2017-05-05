@@ -74,6 +74,7 @@ Daxpy::write(PacketPtr pkt)
 
     if (monitorAddr == 0) {
         monitorAddr = pkt->get<uint64_t>();
+        taskId = pkt->req->taskId();
     } else if (paramsAddr == 0) {
         paramsAddr = pkt->get<uint64_t>();
     } else {
@@ -255,6 +256,7 @@ void
 Daxpy::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t *data)
 {
     RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+    req->taskId(taskId);
 
     DPRINTF(Accel, "Tranlating for addr %#x\n", req->getVaddr());
 
