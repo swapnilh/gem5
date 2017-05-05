@@ -2,7 +2,7 @@
 #include <random>
 
 #ifdef M5OP
-#include "util/m5/m5op.h"
+#include "../../util/m5/m5op.h"
 
 #endif
 
@@ -46,7 +46,7 @@ void daxpy_accel(double *X, double *Y, double alpha, const int N)
         : "r"(watch_addr), "r"(params_addr)
         :
     );
-    // printf("Entering spin loop\n");
+    printf("Entering spin loop\n");
     while (watch != 12); // spin
 }
 

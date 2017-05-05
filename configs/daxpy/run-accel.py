@@ -65,7 +65,7 @@ SimpleOpts.set_usage("usage: %prog [options]")
 (opts, args) = SimpleOpts.parse_args()
 
 # Default to running 'daxpy'
-binary = 'daxpy-accel'
+binary = 'applications/daxpy/daxpy-accel'
 
 # Check if there was a binary passed in via the command line and error if
 # there are too many arguments
