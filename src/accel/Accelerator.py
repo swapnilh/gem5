@@ -24,3 +24,21 @@ class DaxpyDriver(EmulatedDriver):
     filename = "daxpy"
 
     hardware = Param.Daxpy("The daxpy hardware")
+
+class GraphEngine(BasicPioDevice):
+    type = 'GraphEngine'
+    cxx_header = "accel/graph_engine.hh"
+
+    memory_port = MasterPort("Port to memory")
+    system = Param.System(Parent.any, "system object")
+
+    max_unroll = Param.Int(8, "Max number of concurrent iterations of loop")
+
+    tlb = Param.X86TLB(X86TLB(), "TLB/MMU to walk page table")
+
+class GraphEngineDriver(EmulatedDriver):
+    type = 'GraphEngineDriver'
+    cxx_header = "accel/graph_engine.hh"
+    filename = "graph_engine"
+
+    hardware = Param.GraphEngine("The Graph Engine hardware")

@@ -3,5 +3,6 @@ Import('*')
 SimObject('Accelerator.py')
 
 Source('daxpy.cc')
+Source('graph_engine.cc')
 
 DebugFlag('Accel')
