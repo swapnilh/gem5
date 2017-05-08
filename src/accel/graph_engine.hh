@@ -34,48 +34,134 @@ class GraphEngine : public BasicPioDevice
     };
 
     typedef struct {
-        Addr X;
-        Addr Y;
-        double alpha;
-        int N;
+        Addr EdgeTable;
+        Addr EdgeIdTable;
+        Addr VertexPropertyTable;
+        Addr VTempPropertyTable;
+        Addr VConstPropertyTable;
+        Addr ActiveVertexTable;
+        long ActiveVertexCount;
+        int iterations;
     } FuncParams;
 
     FuncParams graphParams;
 
+    typedef struct {
+        uint32_t id;
+        uint32_t property;
+    } Vertex;
+
+    typedef struct {
+        uint32_t srcId;
+        uint32_t destId;
+        uint32_t weight;
+    } Edge;
+
     int completedIterations;
 
-    class LoopIteration
+    int barrierCount;
+
+    typedef uint32_t VertexProperty;
+
+    virtual VertexProperty processEdge(uint32_t weight, VertexProperty
+                        srcProp, VertexProperty dstProp);
+
+    virtual VertexProperty reduce(VertexProperty temp, VertexProperty result);
+
+    virtual VertexProperty apply(VertexProperty oldProp, VertexProperty temp,
+                                    VertexProperty vConst);
+
+    class ProcLoopIteration
     {
       private:
         int i;
         int step;
-        double x;
-        double y;
+        Vertex src;
+        VertexProperty destProp;
+        VertexProperty resProp;
+        VertexProperty tempProp;
+        uint32_t edgeId;
+        Edge edge;
         int stage;
         FuncParams params;
         GraphEngine *accel;
       public:
         // Note: each stage should happen 1 cycle after the response
-        void stage1();
-        void stage2();
-        void stage3();
-        void stage4();
+        // Stages are based on Graphicionado pipeline
+        void stage1(); // Read active SRC property
+        void stage2(); // Read Edge Pointer
+        void stage3(); // Read Edges for given SRC
+        void stage4(); // Process Edge
+        void stage5(); // Read Temp DST Property
+        void stage6(); // Reduce
+        void stage7(); // Write Temp DST Property
+        void startApplyPhase();
         void recvResponse(PacketPtr pkt);
-        std::string name() { return std::string("LoopIteration"); }
+        std::string name() { return std::string("ProcLoopIteration"); }
       private:
-        EventWrapper<LoopIteration, &LoopIteration::stage2> runStage2;
-        EventWrapper<LoopIteration, &LoopIteration::stage3> runStage3;
-        EventWrapper<LoopIteration, &LoopIteration::stage4> runStage4;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage2> runStage2;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage3> runStage3;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage4> runStage4;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage5> runStage5;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage6> runStage6;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage7> runStage7;
 
         /* Constructor used for all but the first iteration */
-        LoopIteration(int i, int step, FuncParams params, GraphEngine* accel) :
-            i(i), step(step), x(0), y(0), stage(0), params(params),
-            accel(accel), runStage2(this), runStage3(this), runStage4(this)
+        ProcLoopIteration(int i, int step, FuncParams params,
+            GraphEngine* accel) : i(i), step(step), src(NULL), destProp(NULL),
+            resProp(NULL), tempProp(NULL), edgeId(0), edge(NULL, stage(0),
+            params(params), accel(accel), runStage2(this), runStage3(this),
+            runStage4(this), runStage5(this), runStage6(this), runStage7(this)
             {stage1();}
       public:
         /* Constructor used for the first iteration */
-        LoopIteration(int step, FuncParams params, GraphEngine* accel);
+        ProcLoopIteration(int step, FuncParams params, GraphEngine* accel);
     };
+
+    class ApplyLoopIteration
+    {
+      private:
+        int i;
+        int step;
+        VertexProperty vprop;
+        VertexProperty temp;
+        VertexProperty vconst;
+        FuncParams params;
+        GraphEngine *accel;
+      public:
+        // Note: each stage should happen 1 cycle after the response
+        // Stages are based on Graphicionado pipeline
+        void stage1(); // Read active SRC property
+        void stage2(); // Read Edge Pointer
+        void stage3(); // Read Edges for given SRC
+        void stage4(); // Process Edge
+        void stage5(); // Read Temp DST Property
+        void stage6(); // Reduce
+        void stage7(); // Write Temp DST Property
+        void startApplyPhase();
+        void recvResponse(PacketPtr pkt);
+        std::string name() { return std::string("ProcLoopIteration"); }
+      private:
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage2> runStage2;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage3> runStage3;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage4> runStage4;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage5> runStage5;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage6> runStage6;
+        EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage7> runStage7;
+
+        /* Constructor used for all but the first iteration */
+        AppLoopIteration(int i, int step, FuncParams params,
+            GraphEngine* accel) : i(i), step(step), vprop(NULL), temp(NULL),
+            vconst(NULL), params(params), accel(accel), runStage8(this),
+            runStage9(this), runStage10(this), runStage11(this),
+            runStage12(this), runStage13(this)
+            {stage8();}
+      public:
+        /* Constructor used for the first iteration */
+        AppLoopIteration(int step, FuncParams params, GraphEngine* accel);
+    };
+
+
 
     MemoryPort memoryPort;
 
@@ -89,18 +175,21 @@ class GraphEngine : public BasicPioDevice
     int maxUnroll;
 
     typedef enum {
-        Uninitialized,     // Nothing is ready
-        Initialized,       // monitorAddr and paramsAddr are valid
-        GettingParams,     // Have issued requests for params
-        ExecutingLoop,     // Got all params, actually executing
-        Returning          // Returning the result to the CPU thread
+        Uninitialized,              // Nothing is ready
+        Initialized,                // monitorAddr and paramsAddr are valid
+        GettingParams,              // Have issued requests for params
+        ExecutingProcessingLoop,    // Actually executing Processing Loop
+        ExecutingApplyLoop,         // Actually executing Apply loop
+        Returning                   // Returning the result to the CPU thread
     } Status;
 
     Status status;
 
     int paramsLoaded;
 
-    std::map<Addr, LoopIteration*> addressCallbacks;
+    std::map<Addr, ProcLoopIteration*> procAddressCallbacks;
+
+    std::map<Addr, ProcLoopIteration*> applyAddressCallbacks;
 
     /* Acquires the task Id of the host task,
      * needed by the cache blocks */
@@ -149,23 +238,21 @@ class GraphEngine : public BasicPioDevice
     void sendData(RequestPtr req, uint8_t *data, bool read);
 
     void accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
-            uint8_t *data, LoopIteration *iter);
+            uint8_t *data, ProcLoopIteration *iter);
 
   private:
     EventWrapper<GraphEngine, &GraphEngine::runGraphEngine> runEvent;
 
     void accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t *data);
 
-    void setAddressCallback(Addr addr, LoopIteration* iter);
+    void setAddressCallback(Addr addr, ProcLoopIteration* iter);
 
     void loadParams();
     void recvParam(PacketPtr pkt);
-    void executeLoop();
-    void recvLoop(PacketPtr pkt);
-    /*    void loopIteration1(LoopIteration *iter);
-          void loopIteration2(LoopIteration *iter);
-          void loopIteration3(LoopIteration *iter);
-          void loopIteration4(LoopIteration *iter);*/
+    void executeProcessingLoop();
+    void recvProcessingLoop(PacketPtr pkt);
+    void executeApplyLoop();
+    void recvApplyLoop(PacketPtr pkt);
     void sendFinish();
 };
 
