@@ -58,6 +58,8 @@ SimpleOpts.add_option("--max_unroll", type='int',
                       default=GraphEngine.max_unroll,
                       help = "Number of times to unroll in accel."
                       " Default: %d" % (GraphEngine.max_unroll))
+SimpleOpts.add_option("--args", type='string',
+                      default="", help ="arguments to pass to the binary")
 
 # Set the usage message to display
 SimpleOpts.set_usage("usage: %prog [options]")
@@ -87,7 +89,7 @@ system.mem_ranges = [AddrRange('512MB')] # Create an address range
 
 # Create a simple CPU
 system.cpu = TimingSimpleCPU()
-system.graph_engine = GraphEngine(pio_addr = 0x200000000,
+system.graph_engine = SSSP(pio_addr = 0x200000000,
                                 max_unroll=opts.max_unroll)
 system.graph_engine_driver = GraphEngineDriver(hardware=system.graph_engine,
                                             filename="graph_engine")
@@ -149,7 +151,7 @@ system.mem_ctrl.port = system.membus.master
 process = Process()
 # Set the command
 # cmd is a list which begins with the executable (like argv)
-process.cmd = [binary]
+process.cmd = [binary] + opts.args.split()
 # Set up the driver
 process.drivers = [system.graph_engine_driver]
 # Set the cpu to use the process as its workload and create thread contexts

@@ -4,5 +4,6 @@ SimObject('Accelerator.py')
 
 Source('daxpy.cc')
 Source('graph_engine.cc')
+Source('graph_accel.cc')
 
 DebugFlag('Accel')

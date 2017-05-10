@@ -1,5 +1,3 @@
-
-
 from m5.params import *
 from m5.proxy import *
 
@@ -42,3 +40,7 @@ class GraphEngineDriver(EmulatedDriver):
     filename = "graph_engine"
 
     hardware = Param.GraphEngine("The Graph Engine hardware")
+
+class SSSP(GraphEngine):
+    type = 'SSSP'
+    cxx_header = "accel/graph_accel.hh"

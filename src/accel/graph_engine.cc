@@ -1,4 +1,3 @@
-
 #include "accel/graph_engine.hh"
 
 #include <string>
@@ -10,9 +9,10 @@
 using namespace std;
 
 GraphEngine::GraphEngine(const Params *p) :
-    BasicPioDevice(p, 4096), completedIterations(0), barrierCount(0),
-    memoryPort(p->name+".memory_port", this), monitorAddr(0), paramsAddr(0),
-    context(nullptr), tlb(p->tlb), maxUnroll(p->max_unroll),
+    BasicPioDevice(p, 4096), completedIterations(0),
+    UpdatedActiveVertexCount(0), procFinished(0), applyFinished(0),
+    memoryPort(p->name+".memory_port", this), monitorAddr(0),
+    paramsAddr(0), context(nullptr), tlb(p->tlb), maxUnroll(p->max_unroll),
     status(Uninitialized), runEvent(this)
 {
     assert(this->pioAddr == p->pio_addr);
@@ -106,86 +106,142 @@ GraphEngine::loadParams()
 
     paramsLoaded = 0;
 
-    uint8_t *data_X = new uint8_t[8];
-    accessMemory(paramsAddr, 8, BaseTLB::Read, data_X);
+    uint8_t *EdgeTable = new uint8_t[8];
+    accessMemory(paramsAddr, 8, BaseTLB::Read, EdgeTable);
 
-    uint8_t *data_Y = new uint8_t[8];
-    accessMemory(paramsAddr+8, 8, BaseTLB::Read, data_Y);
+    uint8_t *EdgeIdTable = new uint8_t[8];
+    accessMemory(paramsAddr+8, 8, BaseTLB::Read, EdgeIdTable);
 
-    uint8_t *data_alpha = new uint8_t[8];
-    accessMemory(paramsAddr+16, 8, BaseTLB::Read, data_alpha);
+    uint8_t *VertexPropertyTable = new uint8_t[8];
+    accessMemory(paramsAddr+16, 8, BaseTLB::Read, VertexPropertyTable);
 
-    uint8_t *data_N = new uint8_t[4];
-    accessMemory(paramsAddr+24, 4, BaseTLB::Read, data_N);
+    uint8_t *VTempPropertyTable = new uint8_t[8];
+    accessMemory(paramsAddr+24, 8, BaseTLB::Read, VTempPropertyTable);
+
+    uint8_t *VConstPropertyTable = new uint8_t[8];
+    accessMemory(paramsAddr+32, 8, BaseTLB::Read, VConstPropertyTable);
+
+    uint8_t *ActiveVertexTable = new uint8_t[8];
+    accessMemory(paramsAddr+40, 8, BaseTLB::Read, ActiveVertexTable);
+
+    uint8_t *ActiveVertexCount = new uint8_t[4];
+    accessMemory(paramsAddr+48, 4, BaseTLB::Read, ActiveVertexCount);
+
+    uint8_t *VertexCount = new uint8_t[4];
+    accessMemory(paramsAddr+52, 4, BaseTLB::Read, VertexCount);
+
+    uint8_t *maxIterations = new uint8_t[4];
+    accessMemory(paramsAddr+56, 4, BaseTLB::Read, maxIterations);
 }
 
 void
 GraphEngine::recvParam(PacketPtr pkt)
 {
     if (pkt->req->getVaddr() == paramsAddr) {
-        pkt->writeData((uint8_t*)&graphParams.X);
+        pkt->writeData((uint8_t*)&graphParams.EdgeTable);
     } else if (pkt->req->getVaddr() == paramsAddr+8) {
-        pkt->writeData((uint8_t*)&graphParams.Y);
+        pkt->writeData((uint8_t*)&graphParams.EdgeIdTable);
     } else if (pkt->req->getVaddr() == paramsAddr+16) {
-        pkt->writeData((uint8_t*)&graphParams.alpha);
+        pkt->writeData((uint8_t*)&graphParams.VertexPropertyTable);
     } else if (pkt->req->getVaddr() == paramsAddr+24) {
-        pkt->writeData((uint8_t*)&graphParams.N);
+        pkt->writeData((uint8_t*)&graphParams.VTempPropertyTable);
+    } else if (pkt->req->getVaddr() == paramsAddr+32) {
+        pkt->writeData((uint8_t*)&graphParams.VConstPropertyTable);
+    } else if (pkt->req->getVaddr() == paramsAddr+40) {
+        pkt->writeData((uint8_t*)&graphParams.ActiveVertexTable);
+    } else if (pkt->req->getVaddr() == paramsAddr+48) {
+        pkt->writeData((uint8_t*)&graphParams.ActiveVertexCount);
+    } else if (pkt->req->getVaddr() == paramsAddr+52) {
+        pkt->writeData((uint8_t*)&graphParams.VertexCount);
+    } else if (pkt->req->getVaddr() == paramsAddr+56) {
+        pkt->writeData((uint8_t*)&graphParams.maxIterations);
     } else {
         panic("recv. response for address not expected while getting params");
     }
 
     paramsLoaded++;
 
-    if (paramsLoaded == 4) {
-        executeProcessingLoop();
+    if (paramsLoaded == 9) {
+        executeProcLoop(graphParams);
     }
 }
 
 void
-GraphEngine::executeProcessingLoop()
+GraphEngine::executeProcLoop(FuncParams params)
 {
     status = ExecutingProcessingLoop;
 
     DPRINTF(Accel, "Got all of the params!\n");
-    DPRINTF(Accel, "X: %#x, Y: %#x, alpha: %f, N: %d\n", graphParams.X,
-                graphParams.Y, graphParams.alpha, graphParams.N);
-
-    new ProcLoopIteration(maxUnroll, graphParams, this);
+    DPRINTF(Accel, "EdgeTable:%#x, EdgeIdTable:%#x, VertexPropertyTable:%x\n",
+                params.EdgeTable, params.EdgeIdTable,
+                params.VertexPropertyTable);
+    DPRINTF(Accel, "VTempPropertyTable: %#x, VConstPropertyTable: %#x,"
+            "ActiveVertexTable: %x\n", params.VTempPropertyTable,
+            params.VConstPropertyTable, params.ActiveVertexTable);
+    DPRINTF(Accel, "ActiveVertexCount: %" PRIu64 " VertexCount: %" PRIu64
+            " maxIterations:%" PRIu64 "\n", params.ActiveVertexCount,
+            params.VertexCount, params.maxIterations);
+    new ProcLoopIteration(maxUnroll, params, this);
 }
 
 void
-GraphEngine::executeApplyLoop()
+GraphEngine::executeApplyLoop(FuncParams params)
 {
     status = ExecutingApplyLoop;
 
-    DPRINTF(Accel, "Finished Processing stage!\n");
-
-    new ApplyLoopIteration(maxUnroll, graphParams, this);
+    DPRINTF(Accel, "Got all of the params!\n");
+    DPRINTF(Accel, "EdgeTable:%#x, EdgeIdTable:%#x, VertexPropertyTable:%x\n",
+                params.EdgeTable, params.EdgeIdTable,
+                params.VertexPropertyTable);
+    DPRINTF(Accel, "VTempPropertyTable: %#x, VConstPropertyTable: %#x,"
+            "ActiveVertexTable: %x\n", params.VTempPropertyTable,
+            params.VConstPropertyTable, params.ActiveVertexTable);
+    DPRINTF(Accel, "ActiveVertexCount: %" PRIu64 " VertexCount: %" PRIu64
+            " maxIterations:%" PRIu64 "\n", params.ActiveVertexCount,
+            params.VertexCount, params.maxIterations);
+    new ApplyLoopIteration(maxUnroll, params, this);
 }
 
 GraphEngine::ProcLoopIteration::ProcLoopIteration(int step, FuncParams params,
-    GraphEngine* accel): i(0), step(step), src(NULL), destProp(NULL),
-    resProp(NULL), tempProp(NULL), edgeId(0), edge(NULL, stage(0),
-    params(params), accel(accel), runStage2(this), runStage3(this),
-    runStage4(this), runStage5(this), runStage6(this), runStage7(this)
+    GraphEngine* accel): LoopIteration(step, params, accel), destProp(0),
+    resProp(0), tempProp(0), edgeId(0), stage(0), runStage2(this),
+    runStage3(this), runStage4(this), runStage5(this), runStage6(this)
+    //, runStage7(this)
 {
-    DPRINTFS(Accel, accel, "Initializing Proc loop iterations %d\n", step);
-    for (int i=0; i<step && i<params.activeVertexCount; i++) {
-        DPRINTFS(Accel, accel, "Processing::New iteration for %d\n", i);
-        new ProcLoopIteration(i, step, params, accel);
+    // Check for early finish
+    if (params.ActiveVertexCount == 0) {
+        accel->sendFinish();
+//        delete this;
+    }
+    else {
+        DPRINTFS(Accel, accel, "Initializing Proc loop iterations\n");
+        for (int i=1; i<=step && i<=params.ActiveVertexCount; i++) {
+            DPRINTFS(Accel, accel, "Processing::New iteration for %d\n", i);
+            new ProcLoopIteration(i, step, params, accel);
+        }
     }
 }
 
-GraphEngine::ApplyLoopIteration::ApplyLoopIteration(int step, FuncParams
-    params, GraphEngine* accel): i(0), step(step), vprop(NULL), temp(NULL),
-    vconst(NULL), params(params), accel(accel), runStage8(this),
-    runStage9(this), runStage10(this), runStage11(this), runStage12(this),
-    runStage13(this)
+void
+GraphEngine::ProcLoopIteration::finishIteration()
 {
-    DPRINTFS(Accel, accel, "Initializing Apply loop iterations %d\n", step);
-    for (int i=0; i<step && i<params.activeVertexCount; i++) {
-        DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i);
-        new ApplyLoopIteration(i, step, params, accel);
+    /* Start next iteration of Process Phase */
+    if (i+step <= params.ActiveVertexCount) {
+        DPRINTFS(Accel, accel, "Processing::New iteration for %d\n",
+                i+step);
+        new ProcLoopIteration(i+step, step, params, accel);
+    } else {
+        accel->procFinished++;
+        DPRINTFS(Accel, accel, "Processing finished for stream %d\n",
+                (i%step));
+        if (accel->procFinished == step || accel->procFinished ==
+                (params.ActiveVertexCount % step)) {
+            accel->procFinished=0;
+            DPRINTFS(Accel, accel, "Finished Processing Phase [%d/%d]!\n",
+                    accel->completedIterations+1, params.maxIterations);
+            DPRINTFS(Accel, accel, "Starting Apply Phase!\n");
+            accel->executeApplyLoop(params);
+        }
     }
 }
 
@@ -197,7 +253,7 @@ GraphEngine::ProcLoopIteration::stage1()
     uint8_t *src = new uint8_t[8];
     stage = 1;
     // Checking for overflow
-    assert(params.ActiveVertexTable+8*i>params.ActiveVertexTable);
+    assert(params.ActiveVertexTable+8*i >= params.ActiveVertexTable);
     accel->accessMemoryCallback(params.ActiveVertexTable+8*i, 8, BaseTLB::Read,
                                 src, this);
 }
@@ -210,7 +266,7 @@ GraphEngine::ProcLoopIteration::stage2()
     uint8_t *edgeId = new uint8_t[4];
     stage = 2;
     // Check for overflow
-    assert(params.EdgeIdTable+4*src.id > params.EdgeIdTable);
+    assert(params.EdgeIdTable+4*src.id >= params.EdgeIdTable);
     accel->accessMemoryCallback(params.EdgeIdTable+4*src.id, 4, BaseTLB::Read,
                                 edgeId, this);
 }
@@ -219,12 +275,13 @@ void
 GraphEngine::ProcLoopIteration::stage3()
 {
     // Load edge = EdgeTable[edgeId]
-    // Edge is 96 bits
-    uint8_t *edge = new uint8_t[12];
+    // Edge is 64 bits
+    uint8_t *edge = new uint8_t[8];
     stage = 3;
     // Check for overflow
-    assert(params.EdgeTable+12*edgeId > params.EdgeTable);
-    accel->accessMemoryCallback(params.EdgeTable+12*edgeId, 12, BaseTLB::Read,
+//    DPRINTFS(Accel, accel, "src:%d edgeId:%d\n", src.id, edgeId);
+    assert(params.EdgeTable+8*edgeId >= params.EdgeTable);
+    accel->accessMemoryCallback(params.EdgeTable+8*edgeId, 8, BaseTLB::Read,
                                 edge, this);
 }
 
@@ -232,23 +289,7 @@ void
 GraphEngine::ProcLoopIteration::stage4()
 {
     if (edge.srcId != src.id) {
-        /* Start next iteration of Process Phase */
-        if (i+step < params.ActiveVertexCount) {
-            DPRINTFS(Accel, accel, "Processing::New iteration for %d\n",
-                        i+step);
-            new ProcLoopIteration(i+step, step, params, accel);
-        } else if (i == (params.ActiveVertexCount-1)) {
-            accel->barrierCount++;
-            if (accel->barrierCount == step) {
-               executeApplyLoop();
-            }
-        } else {
-            accel->barrierCount++;
-            if (accel->barrierCount == step) {
-               executeApplyLoop();
-            }
-        }
-        delete this;
+        finishIteration();
         return;
     }
     // Load destProp = VertexPropertyTable[edge.destId]
@@ -256,7 +297,7 @@ GraphEngine::ProcLoopIteration::stage4()
     uint8_t *destProp = new uint8_t[4];
     stage = 4;
     // Check for overflow
-    assert(params.VertexPropertyTable+4*edge.destId >
+    assert(params.VertexPropertyTable+4*edge.destId >=
             params.VertexPropertyTable);
     accel->accessMemoryCallback(params.VertexPropertyTable+4*edge.destId, 4,
                                 BaseTLB::Read, destProp, this);
@@ -265,13 +306,13 @@ GraphEngine::ProcLoopIteration::stage4()
 void
 GraphEngine::ProcLoopIteration::stage5()
 {
-    resProp = processEdge(edge.weight, src.property, destProp);
+    resProp = accel->processEdge(edge.weight, src.property, destProp);
     // Load tempProp = VTempPropertyTable[edge.destId]
     // VertexProperty is 32 bits
     uint8_t *tempProp = new uint8_t[4];
     stage = 5;
     // Check for overflow
-    assert(params.VTempPropertyTable+4*edge.destId >
+    assert(params.VTempPropertyTable+4*edge.destId >=
             params.VTempPropertyTable);
     accel->accessMemoryCallback(params.VTempPropertyTable+4*edge.destId,
                                 4, BaseTLB::Read, tempProp, this);
@@ -280,17 +321,20 @@ GraphEngine::ProcLoopIteration::stage5()
 void
 GraphEngine::ProcLoopIteration::stage6()
 {
-    tempProp = reduce(tempProp, resProp);
+    DPRINTFS(Accel, accel, "src:%d dest:%d tempProp:%" PRIu32 " resProp:%"
+            PRIu32 "\n", i, edge.destId, tempProp, resProp);
+    tempProp = accel->reduce(tempProp, resProp);
+    DPRINTFS(Accel, accel, " reduced to %" PRIu32 "\n", tempProp);
     uint8_t *tempWrite = new uint8_t[4];
     *(VertexProperty*)tempWrite = tempProp;
     stage = 6;
-    assert(params.VTempPropertyTable+4*edge.destId >
+    assert(params.VTempPropertyTable+4*edge.destId >=
             params.VTempPropertyTable);
     accel->accessMemoryCallback(params.VTempPropertyTable+4*edge.destId,
                                 4, BaseTLB::Write, tempWrite, this);
-
 }
 
+/*
 void
 GraphEngine::ProcLoopIteration::stage7()
 {
@@ -300,10 +344,11 @@ GraphEngine::ProcLoopIteration::stage7()
     uint8_t *edge = new uint8_t[12];
     stage = 7;
     // Check for overflow
-    assert(params.EdgeTable+12*edgeId > params.EdgeTable);
+    assert(params.EdgeTable+12*edgeId >= params.EdgeTable);
     accel->accessMemoryCallback(params.EdgeTable+12*edgeId, 12,
                                 BaseTLB::Read, edge, this);
 }
+*/
 
 void
 GraphEngine::ProcLoopIteration::recvResponse(PacketPtr pkt)
@@ -311,119 +356,169 @@ GraphEngine::ProcLoopIteration::recvResponse(PacketPtr pkt)
     // Note: each stage should happen 1 cycle after the response
     switch (stage) {
         case 1:
-            pkt->writeData((Vertex*)&src);
+            pkt->writeData((uint8_t*)&src);
             accel->schedule(runStage2, accel->nextCycle());
             break;
         case 2:
-            pkt->writeData((uint32_t*)&edgeId);
-            accel->schedule(runStage3, accel->nextCycle());
+            pkt->writeData((uint8_t*)&edgeId);
+//            assert(edgeId>=0); TODO
+            if (edgeId == INIT_VAL)
+                finishIteration();
+            else
+                accel->schedule(runStage3, accel->nextCycle());
             break;
         case 3:
-            pkt->writeData((Edge*)&edge;
+            pkt->writeData((uint8_t*)&edge);
             accel->schedule(runStage4, accel->nextCycle());
             break;
         case 4:
-            pkt->writeData((VertexProperty*)&destProp);
+            pkt->writeData((uint8_t*)&destProp);
             accel->schedule(runStage5, accel->nextCycle());
             break;
         case 5:
-            pkt->writeData((VertexProperty*)&tempProp);
+            pkt->writeData((uint8_t*)&tempProp);
             accel->schedule(runStage6, accel->nextCycle());
             break;
         case 6:
-            accel->schedule(runStage7, accel->nextCycle());
+            edgeId++;
+            accel->schedule(runStage3, accel->nextCycle());
             break;
-        case 7:
+/*        case 7:
             pkt->writeData((Edge*)&edge);
             accel->schedule(runStage4, accel->nextCycle());
             break;
+*/
         default:
             panic("Don't know what to do with this response!");
+    }
+}
+
+GraphEngine::ApplyLoopIteration::ApplyLoopIteration(int step, FuncParams
+    params, GraphEngine* accel): LoopIteration(step, params, accel),
+    vProp(0), tempProp(0), vConstProp(0), stage(0), runStage8(this),
+    runStage9(this), runStage10(this), runStage11(this), runStage12(this),
+    runStage13(this)
+{
+    // Check for early finish
+    if (params.VertexCount == 0) {
+        accel->sendFinish();
+//        delete this;
+    }
+    else {
+        DPRINTFS(Accel, accel, "Initializing apply loop iterations\n");
+        for (int i=1; i<=step && i<=params.VertexCount; i++) {
+            DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i);
+            new ApplyLoopIteration(i, step, params, accel);
+        }
     }
 }
 
 void
 GraphEngine::ApplyLoopIteration::stage8()
 {
-    // Load vprop = VertexPropertyTable[i]
-    uint8_t *vprop = new uint8_t[4];
+    // Load vProp = VertexPropertyTable[i]
+    uint8_t *vProp = new uint8_t[4];
     stage = 8;
     // Checking for overflow
-    assert(params.VertexPropertyTable+8*i>params.VertexPropertyTable);
+    assert(params.VertexPropertyTable+4*i >= params.VertexPropertyTable);
     accel->accessMemoryCallback(params.VertexPropertyTable+4*i, 4,
-                                BaseTLB::Read, vprop, this);
+                                BaseTLB::Read, vProp, this);
 }
 
 void
 GraphEngine::ApplyLoopIteration::stage9()
 {
-    // Load temp = VTempPropertyTable[i]
-    uint8_t *temp = new uint8_t[4];
+    // Load tempProp = VTempPropertyTable[i]
+    uint8_t *tempProp = new uint8_t[4];
     stage = 9;
     // Checking for overflow
-    assert(params.VTempPropertyTable+8*i>params.VTempPropertyTable);
+    assert(params.VTempPropertyTable+4*i >= params.VTempPropertyTable);
     accel->accessMemoryCallback(params.VTempPropertyTable+4*i, 4,
-                                BaseTLB::Read, temp, this);
+                                BaseTLB::Read, tempProp, this);
 }
 
 void
 GraphEngine::ApplyLoopIteration::stage10()
 {
-    // Load vconst = VConstPropertyTable[i]
-    uint8_t *vconst = new uint8_t[4];
+    // Load vConstProp = VConstPropertyTable[i]
+    uint8_t *vConstProp = new uint8_t[4];
     stage = 10;
     // Checking for overflow
-    assert(params.VConstPropertyTable+8*i>params.VConstPropertyTable);
+    assert(params.VConstPropertyTable+4*i >= params.VConstPropertyTable);
     accel->accessMemoryCallback(params.VConstPropertyTable+4*i, 4,
-                                BaseTLB::Read, vconst, this);
+                                BaseTLB::Read, vConstProp, this);
 }
 
 void
 GraphEngine::ApplyLoopIteration::stage11()
 {
-    temp = apply(vprop, temp, vconst);
+    tempProp = accel->apply(vProp, tempProp, vConstProp);
     stage = 11;
-    if (temp != vprop) {
-        // Store VertexPropertyTable[i] = temp
+    if (tempProp != vProp) {
+        // Store VertexPropertyTable[i] = tempProp
+        DPRINTFS(Accel, accel, "Vertex:%d Updating vProp:%d tempProp:%d\n",
+                i, vProp, tempProp);
         uint8_t *tempWrite = new uint8_t[4];
-        *(VertexProperty*)tempWrite = temp;
-        assert(params.VertexPropertyTable+4*i > params.VertexPropertyTable);
+        *(VertexProperty*)tempWrite = tempProp;
+        assert(params.VertexPropertyTable+4*i >= params.VertexPropertyTable);
         accel->accessMemoryCallback(params.VertexPropertyTable+4*i,
                 4, BaseTLB::Write, tempWrite, this);
-
     }
+    else
+        accel->schedule(runStage13, accel->nextCycle());
 }
 
 void
 GraphEngine::ApplyLoopIteration::stage12()
 {
-    Vertex v = new Vertex();
+    Vertex v;
     v.id = i;
-    v.property = temp;
+    v.property = tempProp;
     stage = 12;
-    // Store ActiveVertex[ActiveVertexCount++] = v
-    uint8_t *tempVertex = new uint8_t[8];
-    *(VertexProperty*)tempWrite = temp;
-    assert(params.ActiveVertexTable+8*params.ActiveVertexCount >
+    // Store ActiveVertex[UpdatedActiveVertexCount++] = v
+    uint8_t *tempWrite = new uint8_t[8];
+    *(Vertex*)tempWrite = v;
+    ++accel->UpdatedActiveVertexCount;
+    assert(params.ActiveVertexTable+8*accel->UpdatedActiveVertexCount >=
             params.ActiveVertexTable);
     accel->accessMemoryCallback(params.ActiveVertexTable
-            + 8*params.ActiveVertexCount, 8, BaseTLB::Write, tempWrite, this);
-    params.ActiveVertexCount++;
+            + 8*accel->UpdatedActiveVertexCount, 8, BaseTLB::Write,
+            tempWrite, this);
 }
 
 
 void
 GraphEngine::ApplyLoopIteration::stage13()
 {
-    accel->completedIterations++;
-    if (i+step < params.N) {
-        DPRINTFS(Accel, accel, "New iteration for %d\n", i+step);
+    if (i+step <= params.VertexCount) {
+        DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i+step);
         new ApplyLoopIteration(i+step, step, params, accel);
-    } else if (accel->completedIterations == params.N) {
-        accel->sendFinish();
+    } else {
+        accel->applyFinished++;
+        DPRINTFS(Accel, accel, "Apply finished for stream %d\n",
+                (i%step));
+        if (accel->applyFinished == step || accel->applyFinished ==
+                (params.VertexCount % step)) {
+            accel->applyFinished = 0;
+            accel->completedIterations++;
+            DPRINTFS(Accel, accel, "Finished Apply Phase [%d/%d]!\n",
+                        accel->completedIterations, params.maxIterations);
+            if (accel->completedIterations == params.maxIterations) {
+                // All iterations complete, inform the host
+                DPRINTFS(Accel, accel, "Finished all iterations!\n");
+                accel->completedIterations=0;
+                accel->sendFinish();
+            }
+            else {
+                // Begin next phase of processing with updated params
+                DPRINTFS(Accel, accel, "Starting iteration %d!\n",
+                            accel->completedIterations+1);
+                params.ActiveVertexCount = accel->UpdatedActiveVertexCount;
+                accel->UpdatedActiveVertexCount = 0;
+                accel->executeProcLoop(params);
+            }
+        }
     }
-
-    delete this;
 }
 
 void
@@ -432,15 +527,15 @@ GraphEngine::ApplyLoopIteration::recvResponse(PacketPtr pkt)
     // Note: each stage should happen 1 cycle after the response
     switch (stage) {
         case 8:
-            pkt->writeData((VertexProperty*)&vprop);
+            pkt->writeData((uint8_t*)&vProp);
             accel->schedule(runStage9, accel->nextCycle());
             break;
         case 9:
-            pkt->writeData((VertexProperty*)&temp);
+            pkt->writeData((uint8_t*)&tempProp);
             accel->schedule(runStage10, accel->nextCycle());
             break;
         case 10:
-            pkt->writeData((VertexProperty*)&vconst);
+            pkt->writeData((uint8_t*)&vConstProp);
             accel->schedule(runStage11, accel->nextCycle());
             break;
         case 11:
@@ -469,37 +564,7 @@ GraphEngine::sendFinish()
 
 void
 GraphEngine::accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
-                              uint8_t *data, ProcLoopIteration *iter)
-{
-    setAddressCallback(addr, iter);
-    accessMemory(addr, size, mode, data);
-}
-
-void
-GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
-                        *data)
-{
-        default:
-            panic("Don't know what to do with this response!");
-    }
-}
-
-void
-GraphEngine::sendFinish()
-{
-    status = Returning;
-
-    DPRINTF(Accel, "Sending finish GraphEngine\n");
-
-    uint8_t *data = new uint8_t[4];
-    *(int*)data = 12;
-
-    accessMemory(monitorAddr, 4, BaseTLB::Write, data);
-}
-
-void
-GraphEngine::accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
-                              uint8_t *data, ProcLoopIteration *iter)
+                              uint8_t *data, LoopIteration *iter)
 {
     setAddressCallback(addr, iter);
     accessMemory(addr, size, mode, data);
@@ -550,14 +615,14 @@ GraphEngine::sendData(RequestPtr req, uint8_t *data, bool read)
 }
 
 void
-GraphEngine::setAddressCallback(Addr addr, ProcLoopIteration* iter)
+GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
 {
     switch (status) {
-    ExecutingProcessingLoop:
-        procAddressCallbacks[addr] = iter;
+    case ExecutingProcessingLoop:
+        procAddressCallbacks[addr] = (ProcLoopIteration*)iter;
         break;
-    ExecutingApplyLoop:
-        applyAddressCallbacks[addr] = iter;
+    case ExecutingApplyLoop:
+        applyAddressCallbacks[addr] = (ApplyLoopIteration*)iter;
         break;
     default:
         assert(0);
@@ -616,7 +681,8 @@ GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
 GraphEngine*
 GraphEngineParams::create()
 {
-    return new GraphEngine(this);
+    return (GraphEngine*)NULL;
+    //return new GraphEngine(this); TODO FIXME
 }
 
 GraphEngineDriver*
