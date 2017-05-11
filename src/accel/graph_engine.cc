@@ -619,8 +619,9 @@ void
 GraphEngine::accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
                               uint8_t *data, LoopIteration *iter)
 {
-    setAddressCallback(addr, iter);
-    accessMemory(addr, size, mode, data);
+    // True if no other outstanding request to address
+    if (setAddressCallback(addr, iter))
+        accessMemory(addr, size, mode, data);
 }
 
 void
@@ -667,27 +668,33 @@ GraphEngine::sendData(RequestPtr req, uint8_t *data, bool read)
     memoryPort.schedTimingReq(pkt, nextCycle());
 }
 
-void
+bool
 GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
 {
+    bool no_outstanding = true;
     auto it_proc = procAddressCallbacks.find(addr);
     auto it_apply = applyAddressCallbacks.find(addr);
     switch (status) {
     case ExecutingProcessingLoop:
         DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
                ((ProcLoopIteration*)iter)->name());
-        assert(it_proc == procAddressCallbacks.end());
-        procAddressCallbacks[addr] = (ProcLoopIteration*)iter;
+        if (it_proc != procAddressCallbacks.end()) {
+            // Only tempProp reads are okay to conflict
+            assert(((ProcLoopIteration*)iter)->getStage() == 4);
+            no_outstanding = false;
+        }
+        procAddressCallbacks[addr].push_back((ProcLoopIteration*)iter);
         break;
     case ExecutingApplyLoop:
         DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
                ((ApplyLoopIteration*)iter)->name());
         assert(it_apply == applyAddressCallbacks.end());
-        applyAddressCallbacks[addr] = (ApplyLoopIteration*)iter;
+        applyAddressCallbacks[addr].push_back((ApplyLoopIteration*)iter);
         break;
     default:
         assert(0);
     }
+    return no_outstanding;
 }
 
 void
@@ -698,10 +705,12 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
         panic("Can't find address in loop callback");
     }
 
-    ProcLoopIteration *iter = it->second;
-    DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
-            ((ProcLoopIteration*)iter)->name());
-    iter->recvResponse(pkt);
+    std::vector<ProcLoopIteration*> waiters = it->second;
+    for ( auto waiter = waiters.begin(); waiter != waiters.end(); ++waiter) {
+        ((ProcLoopIteration*)*waiter)->recvResponse(pkt);
+        DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
+                ((ProcLoopIteration*)*waiter)->name());
+    }
     procAddressCallbacks.erase(it);
 }
 
@@ -713,10 +722,13 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
         panic("Can't find address in loop callback");
     }
 
-    ApplyLoopIteration *iter = it->second;
+    ApplyLoopIteration *iter = it->second.back();
     DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
             ((ApplyLoopIteration*)iter)->name());
     iter->recvResponse(pkt);
+    it->second.pop_back();
+    //Should have had only one outstanding request
+    assert(it->second.empty());
     applyAddressCallbacks.erase(it);
 }
 

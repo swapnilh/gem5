@@ -134,6 +134,11 @@ class GraphEngine : public BasicPioDevice
             return name.str();
         }
 
+        int getStage()
+        {
+            return stage;
+        }
+
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage2> runStage2;
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage3> runStage3;
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage4> runStage4;
@@ -233,9 +238,9 @@ class GraphEngine : public BasicPioDevice
 
     int paramsLoaded;
 
-    std::map<Addr, ProcLoopIteration*> procAddressCallbacks;
+    std::map<Addr, std::vector<ProcLoopIteration*>> procAddressCallbacks;
 
-    std::map<Addr, ApplyLoopIteration*> applyAddressCallbacks;
+    std::map<Addr, std::vector<ApplyLoopIteration*>> applyAddressCallbacks;
 
     // Used for atomic tempProp RMWs
     std::map<Addr, std::deque<ProcLoopIteration*>> lockedAddresses;
@@ -298,7 +303,7 @@ class GraphEngine : public BasicPioDevice
 
     void accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t *data);
 
-    void setAddressCallback(Addr addr, LoopIteration* iter);
+    bool setAddressCallback(Addr addr, LoopIteration* iter);
 
     void loadParams();
     void recvParam(PacketPtr pkt);
