@@ -202,6 +202,50 @@ GraphEngine::executeApplyLoop(FuncParams params)
     new ApplyLoopIteration(maxUnroll, params, this);
 }
 
+bool
+GraphEngine::acquireLock(Addr addr, ProcLoopIteration *iter)
+{
+    auto it = lockedAddresses.find(addr);
+    DPRINTF(Accel, "Acquiring lock on addr %#x\n", addr);
+    if (it == lockedAddresses.end()) {
+        lockedAddresses[addr].push_back(iter);
+        DPRINTF(Accel, "Acquired lock on addr %#x\n", addr);
+        return true;
+    }
+    else {
+        if (iter == it->second.front()) {
+            DPRINTF(Accel, "Picked from waiting list for addr %#x\n", addr);
+            // Oldest waiter, so can proceed
+            return true;
+        }
+        else {
+            DPRINTF(Accel, "Added to waiting list for addr %#x\n", addr);
+            it->second.push_back(iter);
+            return false;
+        }
+    }
+}
+
+void
+GraphEngine::releaseLock(Addr addr)
+{
+    auto it = lockedAddresses.find(addr);
+    DPRINTF(Accel, "Releasing lock on addr %#x\n", addr);
+    assert (it != lockedAddresses.end());
+
+    // Clear the first waiter
+    it->second.pop_front();
+
+    // No  waiters, erase element
+    if (it->second.empty())
+        lockedAddresses.erase(it);
+    else {
+    // Oldest waiter selected for scheduling
+        ProcLoopIteration *iter = it->second.front();
+        schedule(iter->runStage5, nextCycle());
+    }
+}
+
 GraphEngine::ProcLoopIteration::ProcLoopIteration(int step, FuncParams params,
     GraphEngine* accel): LoopIteration(step, params, accel), destProp(0),
     resProp(0), tempProp(0), edgeId(0), stage(0), runStage2(this),
@@ -225,17 +269,19 @@ GraphEngine::ProcLoopIteration::ProcLoopIteration(int step, FuncParams params,
 void
 GraphEngine::ProcLoopIteration::finishIteration()
 {
+    accel->procFinished++;
+    DPRINTFS(Accel, accel, "Proccessing::Finished %d/%d\n",
+            accel->procFinished, params.ActiveVertexCount);
+
     /* Start next iteration of Process Phase */
     if (i+step <= params.ActiveVertexCount) {
         DPRINTFS(Accel, accel, "Processing::New iteration for %d\n",
                 i+step);
-        new ProcLoopIteration(i+step, step, params, accel);
+             new ProcLoopIteration(i+step, step, params, accel);
     } else {
-        accel->procFinished++;
         DPRINTFS(Accel, accel, "Processing finished for stream %d\n",
-                (i%step));
-        if (accel->procFinished == step || accel->procFinished ==
-                (params.ActiveVertexCount % step)) {
+                (i%step)+1);
+        if (accel->procFinished == params.ActiveVertexCount) {
             accel->procFinished=0;
             DPRINTFS(Accel, accel, "Finished Processing Phase [%d/%d]!\n",
                     accel->completedIterations+1, params.maxIterations);
@@ -311,11 +357,16 @@ GraphEngine::ProcLoopIteration::stage5()
     // VertexProperty is 32 bits
     uint8_t *tempProp = new uint8_t[4];
     stage = 5;
+
     // Check for overflow
     assert(params.VTempPropertyTable+4*edge.destId >=
             params.VTempPropertyTable);
-    accel->accessMemoryCallback(params.VTempPropertyTable+4*edge.destId,
+    //Try to acquire lock on the addr
+    if (accel->acquireLock(params.VTempPropertyTable+4*edge.destId, this))
+    {
+        accel->accessMemoryCallback(params.VTempPropertyTable+4*edge.destId,
                                 4, BaseTLB::Read, tempProp, this);
+    }
 }
 
 void
@@ -381,6 +432,7 @@ GraphEngine::ProcLoopIteration::recvResponse(PacketPtr pkt)
             break;
         case 6:
             edgeId++;
+            accel->releaseLock(pkt->req->getVaddr());
             accel->schedule(runStage3, accel->nextCycle());
             break;
 /*        case 7:
@@ -490,15 +542,16 @@ GraphEngine::ApplyLoopIteration::stage12()
 void
 GraphEngine::ApplyLoopIteration::stage13()
 {
+    accel->applyFinished++;
+    DPRINTFS(Accel, accel, "Apply::Finished %d/%d\n",
+            accel->applyFinished, params.VertexCount);
     if (i+step <= params.VertexCount) {
         DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i+step);
         new ApplyLoopIteration(i+step, step, params, accel);
     } else {
-        accel->applyFinished++;
         DPRINTFS(Accel, accel, "Apply finished for stream %d\n",
-                (i%step));
-        if (accel->applyFinished == step || accel->applyFinished ==
-                (params.VertexCount % step)) {
+                (i%step)+1);
+        if (accel->applyFinished == params.VertexCount) {
             accel->applyFinished = 0;
             accel->completedIterations++;
             DPRINTFS(Accel, accel, "Finished Apply Phase [%d/%d]!\n",
@@ -617,11 +670,19 @@ GraphEngine::sendData(RequestPtr req, uint8_t *data, bool read)
 void
 GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
 {
+    auto it_proc = procAddressCallbacks.find(addr);
+    auto it_apply = applyAddressCallbacks.find(addr);
     switch (status) {
     case ExecutingProcessingLoop:
+        DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
+               ((ProcLoopIteration*)iter)->name());
+        assert(it_proc == procAddressCallbacks.end());
         procAddressCallbacks[addr] = (ProcLoopIteration*)iter;
         break;
     case ExecutingApplyLoop:
+        DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
+               ((ApplyLoopIteration*)iter)->name());
+        assert(it_apply == applyAddressCallbacks.end());
         applyAddressCallbacks[addr] = (ApplyLoopIteration*)iter;
         break;
     default:
@@ -638,7 +699,10 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
     }
 
     ProcLoopIteration *iter = it->second;
+    DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
+            ((ProcLoopIteration*)iter)->name());
     iter->recvResponse(pkt);
+    procAddressCallbacks.erase(it);
 }
 
 void
@@ -650,7 +714,10 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
     }
 
     ApplyLoopIteration *iter = it->second;
+    DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
+            ((ApplyLoopIteration*)iter)->name());
     iter->recvResponse(pkt);
+    applyAddressCallbacks.erase(it);
 }
 
 bool

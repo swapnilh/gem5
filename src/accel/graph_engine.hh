@@ -2,6 +2,7 @@
 #define __ACCEL_GRAPH_ENGINE_HH__
 
 #include <map>
+#include <sstream>
 
 #include "arch/tlb.hh"
 #include "cpu/thread_context.hh"
@@ -128,10 +129,11 @@ class GraphEngine : public BasicPioDevice
         void startApplyPhase();
         void recvResponse (PacketPtr pkt) override;
         std::string name() override {
-            return std::string("ProcLoopIteration");
+            std::stringstream name;
+            name << "ProcLoopIteration i:" << i << " stage:" << stage;
+            return name.str();
         }
 
-      private:
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage2> runStage2;
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage3> runStage3;
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage4> runStage4;
@@ -139,6 +141,7 @@ class GraphEngine : public BasicPioDevice
         EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage6> runStage6;
 //      EventWrapper<ProcLoopIteration, &ProcLoopIteration::stage7> runStage7;
 
+      private:
         /* Constructor used for all but the first iteration */
         ProcLoopIteration(int i, int step, FuncParams params,
             GraphEngine* accel) : LoopIteration(i, step, params, accel),
@@ -175,7 +178,9 @@ class GraphEngine : public BasicPioDevice
         void startApplyPhase();
         void recvResponse (PacketPtr pkt) override;
         std::string name() override {
-            return std::string("ProcLoopIteration");
+            std::stringstream name;
+            name << "ApplyLoopIteration i:" << i << " stage:" << stage;
+            return name.str();
         }
 
       private:
@@ -231,6 +236,13 @@ class GraphEngine : public BasicPioDevice
     std::map<Addr, ProcLoopIteration*> procAddressCallbacks;
 
     std::map<Addr, ApplyLoopIteration*> applyAddressCallbacks;
+
+    // Used for atomic tempProp RMWs
+    std::map<Addr, std::deque<ProcLoopIteration*>> lockedAddresses;
+
+    bool acquireLock(Addr addr, ProcLoopIteration* iter);
+
+    void releaseLock(Addr addr);
 
     /* Acquires the task Id of the host task,
      * needed by the cache blocks */
