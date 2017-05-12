@@ -15,23 +15,26 @@
 #include "sim/process.hh"
 #include "sim/system.hh"
 
+typedef uint64_t NodeId;
+
+typedef uint64_t VertexProperty;
+
 typedef struct {
-    uint32_t id;
-    uint32_t property;
+    NodeId id;
+    VertexProperty property;
 } Vertex;
 
 typedef struct {
-    uint16_t srcId;
-    uint16_t destId;
-    uint32_t weight;
+    NodeId srcId;
+    NodeId destId;
+    VertexProperty weight;
 } Edge;
 
-typedef uint32_t VertexProperty;
-
-const uint32_t INIT_VAL = 0;
+// Used for nodes with no outgoing edges
+const NodeId INIT_VAL = 0;
 
 // Used for unsigned ints which underflow to get highest value
-const uint32_t INF = -1;
+const VertexProperty INF = -1;
 
 class GraphEngine : public BasicPioDevice
 {
@@ -57,8 +60,8 @@ class GraphEngine : public BasicPioDevice
         Addr VTempPropertyTable;
         Addr VConstPropertyTable;
         Addr ActiveVertexTable;
-        uint32_t ActiveVertexCount;
-        uint32_t VertexCount;
+        NodeId ActiveVertexCount;
+        NodeId VertexCount;
         uint32_t maxIterations;
     } FuncParams;
 
@@ -67,7 +70,7 @@ class GraphEngine : public BasicPioDevice
   public:
     int completedIterations;
 
-    uint32_t UpdatedActiveVertexCount;
+    NodeId UpdatedActiveVertexCount;
 
     /* Track streams finished with processing phase */
     int procFinished;
@@ -75,7 +78,7 @@ class GraphEngine : public BasicPioDevice
     /* Track streams finished with apply phase */
     int applyFinished;
 
-    virtual VertexProperty processEdge(uint32_t weight, VertexProperty
+    virtual VertexProperty processEdge(VertexProperty weight, VertexProperty
                                         srcProp, VertexProperty dstProp) = 0;
 
     virtual VertexProperty reduce(VertexProperty temp,
@@ -112,7 +115,7 @@ class GraphEngine : public BasicPioDevice
         VertexProperty destProp;
         VertexProperty resProp;
         VertexProperty tempProp;
-        uint32_t edgeId;
+        NodeId edgeId;
         Edge edge;
         int stage;
       public:
@@ -295,10 +298,60 @@ class GraphEngine : public BasicPioDevice
 
     void sendData(RequestPtr req, uint8_t *data, bool read);
 
+    void sendSplitData(RequestPtr req1, RequestPtr req2, RequestPtr req,
+            uint8_t *data, bool read);
+
     void accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
             uint8_t *data, LoopIteration *iter);
 
   private:
+    /*
+     * If an access needs to be broken into fragments, currently at most two,
+     * the the following two classes are used as the sender state of the
+     * packets so the CPU can keep track of everything. In the main packet
+     * sender state, there's an array with a spot for each fragment. If a
+     * fragment has already been accepted by the CPU, aka isn't waiting for
+     * a retry, it's pointer is NULL. After each fragment has successfully
+     * been processed, the "outstanding" counter is decremented. Once the
+     * count is zero, the entire larger access is complete.
+     */
+    class SplitMainSenderState : public Packet::SenderState
+    {
+      public:
+        int outstanding;
+        PacketPtr fragments[2];
+
+        int
+        getPendingFragment()
+        {
+            if (fragments[0]) {
+                return 0;
+            } else if (fragments[1]) {
+                return 1;
+            } else {
+                return -1;
+            }
+        }
+    };
+
+    class SplitFragmentSenderState : public Packet::SenderState
+    {
+      public:
+        SplitFragmentSenderState(PacketPtr _bigPkt, int _index) :
+            bigPkt(_bigPkt), index(_index)
+        {}
+        PacketPtr bigPkt;
+        int index;
+
+        void
+        clearFromParent()
+        {
+            SplitMainSenderState * main_send_state =
+                dynamic_cast<SplitMainSenderState *>(bigPkt->senderState);
+            main_send_state->fragments[index] = NULL;
+        }
+    };
+
     EventWrapper<GraphEngine, &GraphEngine::runGraphEngine> runEvent;
 
     void accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t *data);

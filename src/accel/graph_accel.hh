@@ -17,7 +17,7 @@ class SSSP : public GraphEngine
     typedef SSSPParams Params;
     SSSP(const Params *p);
 
-    VertexProperty processEdge(uint32_t weight, VertexProperty
+    VertexProperty processEdge(VertexProperty weight, VertexProperty
                                 srcProp, VertexProperty dstProp) override;
 
     VertexProperty reduce(VertexProperty temp,

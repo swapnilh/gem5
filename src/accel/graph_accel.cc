@@ -11,7 +11,7 @@ SSSP::SSSP(const Params *p) : GraphEngine (p)
 }
 
 VertexProperty
-SSSP::processEdge(uint32_t weight, VertexProperty
+SSSP::processEdge(VertexProperty weight, VertexProperty
                     srcProp, VertexProperty dstProp)
 {
     if (srcProp == INF)

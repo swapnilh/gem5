@@ -19,48 +19,50 @@
 
 #endif
 
-const uint32_t INIT_VAL = 0;
+// We use NodeId for both nodes and edges
+typedef uint64_t NodeId;
+
+typedef uint64_t VertexProperty;
+
+const NodeId INIT_VAL = 0;
 
 // Used for unsigned ints which underflow to get highest value
-const uint32_t INF = -1;
+const VertexProperty INF = -1;
 
-const uint16_t SOURCE = 1;
+const NodeId SOURCE = 1;
 
 typedef struct {
-    uint32_t id;
-    uint32_t property;
+    NodeId id;
+    VertexProperty property;
 } Vertex;
 
 typedef struct {
-    uint16_t srcId;
-    uint16_t destId;
-    uint32_t weight;
+    NodeId srcId;
+    NodeId destId;
+    VertexProperty weight;
 } Edge;
-
-typedef uint32_t VertexProperty;
-
 
 typedef struct {
     Edge *EdgeTable;
-    uint32_t *EdgeIdTable;
+    NodeId *EdgeIdTable;
     VertexProperty *VertexPropertyTable;
     VertexProperty *VTempPropertyTable;
     VertexProperty *VConstPropertyTable;
     Vertex *ActiveVertexTable;
-    uint32_t ActiveVertexCount;
-    uint32_t VertexCount;
+    NodeId ActiveVertexCount;
+    NodeId VertexCount;
     uint32_t maxIterations;
 } GraphParams;
 
 Edge *EdgeTable;
-uint32_t *EdgeIdTable;
+NodeId *EdgeIdTable;
 VertexProperty *VertexPropertyTable;
 VertexProperty *VTempPropertyTable;
 VertexProperty *VConstPropertyTable;
 Vertex *ActiveVertexTable;
-uint32_t ActiveVertexCount;
+NodeId ActiveVertexCount;
 uint32_t maxIterations;
-uint32_t VertexCount, numEdges;
+NodeId VertexCount, numEdges;
 VertexProperty *SerialVPropertyTable;
 
 void print_params(){
@@ -68,13 +70,13 @@ void print_params(){
     std::cout << "\n Printing Params \n";
 
     std::cout << "*****EdgeTable (0x" << EdgeTable << ")*****\n";
-    for (uint32_t i=1; i<=numEdges; i++) {
+    for (NodeId i=1; i<=numEdges; i++) {
         std::cout << i << " " << EdgeTable[i].srcId << " " <<
             EdgeTable[i].destId << " " << EdgeTable[i].weight << std::endl;
     }
 /*
     std::cout << "\n*****EdgeIdTable (0x" << EdgeIdTable << ")*****\n";
-    for (uint32_t i=1; i<=VertexCount; i++) {
+    for (NodeId i=1; i<=VertexCount; i++) {
         std::cout << i << " " << EdgeIdTable[i] << std::endl;
     }
 */
@@ -82,27 +84,30 @@ void print_params(){
 /*    std::cout << "\n*****ActiveVertexTable (0x" << ActiveVertexTable
         << ")*****\n";
 
-    for (uint32_t i=1; i<=ActiveVertexCount; i++) {
+    for (NodeId i=1; i<=ActiveVertexCount; i++) {
         std::cout << i << " " << ActiveVertexTable[i].id << " " <<
             ActiveVertexTable[i].property << std::endl;
     }
 */
+
+
 #ifdef ACCEL
     std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
         << ")*****\n";
 
-    for (uint32_t i=1; i<=VertexCount; i++) {
+    for (NodeId i=1; i<=VertexCount; i++) {
         std::cout << i << " " << VertexPropertyTable[i] << std::endl;
     }
 #else
     std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
         << ")*****\n";
 
-    for (uint32_t i=1; i<=VertexCount; i++) {
+    for (NodeId i=1; i<=VertexCount; i++) {
         std::cout << i << " " << SerialVPropertyTable[i] << std::endl;
     }
 
 #endif
+
 /*
     std::cout << "\n*****VTempPropertyTable(0x" << VTempPropertyTable
         << ")*****\n";
@@ -115,7 +120,7 @@ void print_params(){
 // This function is algo-specific
 void populate_params() {
     ActiveVertexCount = 0;
-    for (uint32_t i=1; i<=VertexCount; i++) {
+    for (NodeId i=1; i<=VertexCount; i++) {
         VertexPropertyTable[i] = INF;
         VTempPropertyTable[i]  = INF;
         VConstPropertyTable[i] = INF;
@@ -176,7 +181,7 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
             break;
         }
     }
-    uint32_t m, n, edges;
+    NodeId m, n, edges;
     in >> m >> n >> edges >> std::ws;
     if (m != n) {
       std::cout << m << " " << n << " " << edges << std::endl;
@@ -186,11 +191,19 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
 
     VertexCount = m;
     numEdges = edges;
+    std::cout << "Vertices:" << VertexCount << "Edges" << numEdges <<
+        std::endl;
 
     EdgeTable = (Edge*)malloc((numEdges+1)*sizeof(Edge));
-    EdgeIdTable = (uint32_t*)malloc((VertexCount+1)*sizeof(uint32_t));
+    EdgeIdTable = (NodeId*)malloc((VertexCount+1)*sizeof(NodeId));
+/*    std::cout << "Size of EdgeIdTable:" << (numEdges+1)*sizeof(Edge);
+    std::cout << "Size of Edges:" << sizeof(Edge);
+    std::cout << "Size of EdgeTable ptr:" << sizeof(EdgeTable);*/
     VertexPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
                             sizeof(VertexProperty));
+    std::cout << "Size of VP:" << sizeof(VertexProperty) << std::endl;
+    std::cout << "Vertex Count:" << VertexCount << std::endl;
+    std::cout << "Size of VPT:" << (VertexCount+1)*sizeof(VertexProperty);
     VTempPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
                             sizeof(VertexProperty));
     VConstPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
@@ -204,9 +217,9 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
         EdgeIdTable[i] = INIT_VAL;
     }
 
-    int edgeCtr = 1;
-    uint16_t u, v;
-    uint32_t w;
+    NodeId edgeCtr = 1;
+    NodeId u, v;
+    VertexProperty w;
     while (std::getline(in, line)) {
         std::istringstream edge_stream(line);
         edge_stream >> u;
@@ -235,7 +248,7 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
 class CompareNode {
   public:
     // Returns true if b has higher priority i.e closer to source
-    bool operator()(uint16_t a, uint16_t b)
+    bool operator()(NodeId a, NodeId b)
     {
        return SerialVPropertyTable[b] < SerialVPropertyTable[a];
     }
@@ -244,20 +257,21 @@ class CompareNode {
 // Simple, serial implementation to compare with
 void sssp()
 {
-    std::priority_queue <uint16_t, std::vector<uint16_t>, CompareNode> queue;
-    uint16_t u, v;
+    std::priority_queue <NodeId, std::vector<NodeId>, CompareNode> queue;
+    NodeId u = INIT_VAL;
+    NodeId v = INIT_VAL;
     queue.empty();
     queue.push(SOURCE);
 
     while (!queue.empty()) {
         u = queue.top();
         queue.pop();
-        uint32_t edgeId = EdgeIdTable[u];
+        NodeId edgeId = EdgeIdTable[u];
         Edge edge = EdgeTable[edgeId++];
         while (edge.srcId == u) {
             v = edge.destId;
-            uint32_t destU = SerialVPropertyTable[u];
-            uint32_t destV = SerialVPropertyTable[v];
+            VertexProperty destU = SerialVPropertyTable[u];
+            VertexProperty destV = SerialVPropertyTable[v];
             if (destV > destU + edge.weight) {
                 SerialVPropertyTable[v] = destU + edge.weight;
                 queue.push(v);
@@ -287,12 +301,12 @@ void sssp_accel ()
     while (watch != 12); // spin
 }
 
-void verify ()
+void verify()
 {
-    for (uint16_t i=1; i<=VertexCount; i++) {
+    for (NodeId i=1; i<=VertexCount; i++) {
         if (VertexPropertyTable[i] != SerialVPropertyTable[i]) {
             std::cout << "Verification error\n";
-            std::cout << "i:" << i << " Serial:" << SerialVPropertyTable [i]
+            std::cout << "i:" << i << " Serial:" << SerialVPropertyTable[i]
                 << " Accel:" << VertexPropertyTable[i] << std::endl;
         }
     }

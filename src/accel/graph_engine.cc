@@ -124,14 +124,14 @@ GraphEngine::loadParams()
     uint8_t *ActiveVertexTable = new uint8_t[8];
     accessMemory(paramsAddr+40, 8, BaseTLB::Read, ActiveVertexTable);
 
-    uint8_t *ActiveVertexCount = new uint8_t[4];
-    accessMemory(paramsAddr+48, 4, BaseTLB::Read, ActiveVertexCount);
+    uint8_t *ActiveVertexCount = new uint8_t[8];
+    accessMemory(paramsAddr+48, 8, BaseTLB::Read, ActiveVertexCount);
 
-    uint8_t *VertexCount = new uint8_t[4];
-    accessMemory(paramsAddr+52, 4, BaseTLB::Read, VertexCount);
+    uint8_t *VertexCount = new uint8_t[8];
+    accessMemory(paramsAddr+56, 8, BaseTLB::Read, VertexCount);
 
     uint8_t *maxIterations = new uint8_t[4];
-    accessMemory(paramsAddr+56, 4, BaseTLB::Read, maxIterations);
+    accessMemory(paramsAddr+64, 4, BaseTLB::Read, maxIterations);
 }
 
 void
@@ -151,9 +151,9 @@ GraphEngine::recvParam(PacketPtr pkt)
         pkt->writeData((uint8_t*)&graphParams.ActiveVertexTable);
     } else if (pkt->req->getVaddr() == paramsAddr+48) {
         pkt->writeData((uint8_t*)&graphParams.ActiveVertexCount);
-    } else if (pkt->req->getVaddr() == paramsAddr+52) {
-        pkt->writeData((uint8_t*)&graphParams.VertexCount);
     } else if (pkt->req->getVaddr() == paramsAddr+56) {
+        pkt->writeData((uint8_t*)&graphParams.VertexCount);
+    } else if (pkt->req->getVaddr() == paramsAddr+64) {
         pkt->writeData((uint8_t*)&graphParams.maxIterations);
     } else {
         panic("recv. response for address not expected while getting params");
@@ -295,25 +295,25 @@ void
 GraphEngine::ProcLoopIteration::stage1()
 {
     // Load srcId = ActiveVertexTable[i]
-    // Vertex is 64 bits
-    uint8_t *src = new uint8_t[8];
+    // Vertex is 128 bits
+    uint8_t *src = new uint8_t[16];
     stage = 1;
     // Checking for overflow
-    assert(params.ActiveVertexTable+8*i >= params.ActiveVertexTable);
-    accel->accessMemoryCallback(params.ActiveVertexTable+8*i, 8, BaseTLB::Read,
-                                src, this);
+    assert(params.ActiveVertexTable+16*i >= params.ActiveVertexTable);
+    accel->accessMemoryCallback(params.ActiveVertexTable+16*i, 16,
+                                BaseTLB::Read, src, this);
 }
 
 void
 GraphEngine::ProcLoopIteration::stage2()
 {
     // Load edgeId = EdgeIdTable[src.Id]
-    // edgeId is 32 bits
-    uint8_t *edgeId = new uint8_t[4];
+    // edgeId is 64 bits
+    uint8_t *edgeId = new uint8_t[8];
     stage = 2;
     // Check for overflow
-    assert(params.EdgeIdTable+4*src.id >= params.EdgeIdTable);
-    accel->accessMemoryCallback(params.EdgeIdTable+4*src.id, 4, BaseTLB::Read,
+    assert(params.EdgeIdTable+8*src.id >= params.EdgeIdTable);
+    accel->accessMemoryCallback(params.EdgeIdTable+8*src.id, 8, BaseTLB::Read,
                                 edgeId, this);
 }
 
@@ -321,13 +321,13 @@ void
 GraphEngine::ProcLoopIteration::stage3()
 {
     // Load edge = EdgeTable[edgeId]
-    // Edge is 64 bits
-    uint8_t *edge = new uint8_t[8];
+    // Edge is 192 bits
+    uint8_t *edge = new uint8_t[24];
     stage = 3;
     // Check for overflow
 //    DPRINTFS(Accel, accel, "src:%d edgeId:%d\n", src.id, edgeId);
-    assert(params.EdgeTable+8*edgeId >= params.EdgeTable);
-    accel->accessMemoryCallback(params.EdgeTable+8*edgeId, 8, BaseTLB::Read,
+    assert(params.EdgeTable+24*edgeId >= params.EdgeTable);
+    accel->accessMemoryCallback(params.EdgeTable+24*edgeId, 24, BaseTLB::Read,
                                 edge, this);
 }
 
@@ -339,13 +339,13 @@ GraphEngine::ProcLoopIteration::stage4()
         return;
     }
     // Load destProp = VertexPropertyTable[edge.destId]
-    // VertexProperty is 32 bits
-    uint8_t *destProp = new uint8_t[4];
+    // VertexProperty is 64 bits
+    uint8_t *destProp = new uint8_t[8];
     stage = 4;
     // Check for overflow
-    assert(params.VertexPropertyTable+4*edge.destId >=
+    assert(params.VertexPropertyTable+8*edge.destId >=
             params.VertexPropertyTable);
-    accel->accessMemoryCallback(params.VertexPropertyTable+4*edge.destId, 4,
+    accel->accessMemoryCallback(params.VertexPropertyTable+8*edge.destId, 8,
                                 BaseTLB::Read, destProp, this);
 }
 
@@ -353,36 +353,39 @@ void
 GraphEngine::ProcLoopIteration::stage5()
 {
     resProp = accel->processEdge(edge.weight, src.property, destProp);
+    DPRINTFS(Accel, accel, "src:%" PRIu64 " dest:%" PRIu64 " edgeweight:%"
+            PRIu32 " resProp:%" PRIu64 "\n", src.id, edge.destId, tempProp,
+            resProp);
     // Load tempProp = VTempPropertyTable[edge.destId]
-    // VertexProperty is 32 bits
-    uint8_t *tempProp = new uint8_t[4];
+    // VertexProperty is 64 bits
+    uint8_t *tempProp = new uint8_t[8];
     stage = 5;
 
     // Check for overflow
-    assert(params.VTempPropertyTable+4*edge.destId >=
+    assert(params.VTempPropertyTable+8*edge.destId >=
             params.VTempPropertyTable);
     //Try to acquire lock on the addr
-    if (accel->acquireLock(params.VTempPropertyTable+4*edge.destId, this))
+    if (accel->acquireLock(params.VTempPropertyTable+8*edge.destId, this))
     {
-        accel->accessMemoryCallback(params.VTempPropertyTable+4*edge.destId,
-                                4, BaseTLB::Read, tempProp, this);
+        accel->accessMemoryCallback(params.VTempPropertyTable+8*edge.destId,
+                                8, BaseTLB::Read, tempProp, this);
     }
 }
 
 void
 GraphEngine::ProcLoopIteration::stage6()
 {
-    DPRINTFS(Accel, accel, "src:%d dest:%d tempProp:%" PRIu32 " resProp:%"
-            PRIu32 "\n", i, edge.destId, tempProp, resProp);
+    DPRINTFS(Accel, accel, "src:%d dest:%d tempProp:%" PRIu64 " resProp:%"
+            PRIu64 "\n", i, edge.destId, tempProp, resProp);
     tempProp = accel->reduce(tempProp, resProp);
-    DPRINTFS(Accel, accel, " reduced to %" PRIu32 "\n", tempProp);
-    uint8_t *tempWrite = new uint8_t[4];
+    DPRINTFS(Accel, accel, " reduced to %" PRIu64 "\n", tempProp);
+    uint8_t *tempWrite = new uint8_t[8];
     *(VertexProperty*)tempWrite = tempProp;
     stage = 6;
-    assert(params.VTempPropertyTable+4*edge.destId >=
+    assert(params.VTempPropertyTable+8*edge.destId >=
             params.VTempPropertyTable);
-    accel->accessMemoryCallback(params.VTempPropertyTable+4*edge.destId,
-                                4, BaseTLB::Write, tempWrite, this);
+    accel->accessMemoryCallback(params.VTempPropertyTable+8*edge.destId,
+                                8, BaseTLB::Write, tempWrite, this);
 }
 
 /*
@@ -469,11 +472,11 @@ void
 GraphEngine::ApplyLoopIteration::stage8()
 {
     // Load vProp = VertexPropertyTable[i]
-    uint8_t *vProp = new uint8_t[4];
+    uint8_t *vProp = new uint8_t[8];
     stage = 8;
     // Checking for overflow
-    assert(params.VertexPropertyTable+4*i >= params.VertexPropertyTable);
-    accel->accessMemoryCallback(params.VertexPropertyTable+4*i, 4,
+    assert(params.VertexPropertyTable+8*i >= params.VertexPropertyTable);
+    accel->accessMemoryCallback(params.VertexPropertyTable+8*i, 8,
                                 BaseTLB::Read, vProp, this);
 }
 
@@ -481,11 +484,11 @@ void
 GraphEngine::ApplyLoopIteration::stage9()
 {
     // Load tempProp = VTempPropertyTable[i]
-    uint8_t *tempProp = new uint8_t[4];
+    uint8_t *tempProp = new uint8_t[8];
     stage = 9;
     // Checking for overflow
-    assert(params.VTempPropertyTable+4*i >= params.VTempPropertyTable);
-    accel->accessMemoryCallback(params.VTempPropertyTable+4*i, 4,
+    assert(params.VTempPropertyTable+8*i >= params.VTempPropertyTable);
+    accel->accessMemoryCallback(params.VTempPropertyTable+8*i, 8,
                                 BaseTLB::Read, tempProp, this);
 }
 
@@ -493,11 +496,11 @@ void
 GraphEngine::ApplyLoopIteration::stage10()
 {
     // Load vConstProp = VConstPropertyTable[i]
-    uint8_t *vConstProp = new uint8_t[4];
+    uint8_t *vConstProp = new uint8_t[8];
     stage = 10;
     // Checking for overflow
-    assert(params.VConstPropertyTable+4*i >= params.VConstPropertyTable);
-    accel->accessMemoryCallback(params.VConstPropertyTable+4*i, 4,
+    assert(params.VConstPropertyTable+8*i >= params.VConstPropertyTable);
+    accel->accessMemoryCallback(params.VConstPropertyTable+8*i, 8,
                                 BaseTLB::Read, vConstProp, this);
 }
 
@@ -510,11 +513,11 @@ GraphEngine::ApplyLoopIteration::stage11()
         // Store VertexPropertyTable[i] = tempProp
         DPRINTFS(Accel, accel, "Vertex:%d Updating vProp:%d tempProp:%d\n",
                 i, vProp, tempProp);
-        uint8_t *tempWrite = new uint8_t[4];
+        uint8_t *tempWrite = new uint8_t[8];
         *(VertexProperty*)tempWrite = tempProp;
-        assert(params.VertexPropertyTable+4*i >= params.VertexPropertyTable);
-        accel->accessMemoryCallback(params.VertexPropertyTable+4*i,
-                4, BaseTLB::Write, tempWrite, this);
+        assert(params.VertexPropertyTable+8*i >= params.VertexPropertyTable);
+        accel->accessMemoryCallback(params.VertexPropertyTable+8*i,
+                8, BaseTLB::Write, tempWrite, this);
     }
     else
         accel->schedule(runStage13, accel->nextCycle());
@@ -528,16 +531,15 @@ GraphEngine::ApplyLoopIteration::stage12()
     v.property = tempProp;
     stage = 12;
     // Store ActiveVertex[UpdatedActiveVertexCount++] = v
-    uint8_t *tempWrite = new uint8_t[8];
+    uint8_t *tempWrite = new uint8_t[16];
     *(Vertex*)tempWrite = v;
     ++accel->UpdatedActiveVertexCount;
-    assert(params.ActiveVertexTable+8*accel->UpdatedActiveVertexCount >=
+    assert(params.ActiveVertexTable+16*accel->UpdatedActiveVertexCount >=
             params.ActiveVertexTable);
     accel->accessMemoryCallback(params.ActiveVertexTable
-            + 8*accel->UpdatedActiveVertexCount, 8, BaseTLB::Write,
+            + 16*accel->UpdatedActiveVertexCount, 16, BaseTLB::Write,
             tempWrite, this);
 }
-
 
 void
 GraphEngine::ApplyLoopIteration::stage13()
@@ -628,17 +630,35 @@ void
 GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
                         *data)
 {
+    unsigned block_size = 64; //TODO figure out better version?
+
     RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
     req->taskId(taskId);
 
     DPRINTF(Accel, "Tranlating for addr %#x\n", req->getVaddr());
 
-    WholeTranslationState *state =
-                new WholeTranslationState(req, data, NULL, mode);
-    DataTranslation<GraphEngine*> *translation
-            = new DataTranslation<GraphEngine*>(this, state);
+    Addr split_addr = roundDown(addr + size - 1, block_size);
+    assert(split_addr <= addr || split_addr - addr < block_size);
 
-    tlb->translateTiming(req, context, translation, mode);
+    if (split_addr > addr) {
+        RequestPtr req1, req2;
+        req->splitOnVaddr(split_addr, req1, req2);
+
+        WholeTranslationState *state =
+            new WholeTranslationState(req, req1, req2, data, NULL, mode);
+        DataTranslation<GraphEngine *> *trans1 =
+            new DataTranslation<GraphEngine *>(this, state, 0);
+        DataTranslation<GraphEngine *> *trans2 =
+            new DataTranslation<GraphEngine *>(this, state, 1);
+        tlb->translateTiming(req1, context, trans1, mode);
+        tlb->translateTiming(req2, context, trans2, mode);
+    } else {
+        WholeTranslationState *state =
+            new WholeTranslationState(req, data, NULL, mode);
+        DataTranslation<GraphEngine*> *translation
+            = new DataTranslation<GraphEngine*>(this, state);
+        tlb->translateTiming(req, context, translation, mode);
+    }
 }
 
 void
@@ -652,7 +672,14 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
     DPRINTF(Accel, "Got response for translation. %#x -> %#x\n",
             state->mainReq->getVaddr(), state->mainReq->getPaddr());
 
-    sendData(state->mainReq, state->data, state->mode == BaseTLB::Read);
+    if (!state->isSplit) {
+        sendData(state->mainReq, state->data, state->mode == BaseTLB::Read);
+    }
+    else {
+        assert(state->mode == BaseTLB::Read);
+        sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
+                        state->data, state->mode == BaseTLB::Read);
+    }
 
     delete state;
 }
@@ -666,6 +693,40 @@ GraphEngine::sendData(RequestPtr req, uint8_t *data, bool read)
     pkt->dataDynamic<uint8_t>(data);
 
     memoryPort.schedTimingReq(pkt, nextCycle());
+}
+
+void
+GraphEngine::sendSplitData(RequestPtr req1, RequestPtr req2,
+                               RequestPtr req, uint8_t *data, bool read)
+{
+    DPRINTF(Accel, "Sending split request for addr %#x\n", req->getPaddr());
+
+    PacketPtr pkt1 = read ? Packet::createRead(req1):Packet::createWrite(req1);
+    PacketPtr pkt2 = read ? Packet::createRead(req2):Packet::createWrite(req2);
+
+    PacketPtr pkt = new Packet(req, pkt1->cmd.responseCommand());
+    pkt->dataDynamic<uint8_t>(data);
+    pkt1->dataStatic<uint8_t>(data);
+    pkt2->dataStatic<uint8_t>(data + req1->getSize());
+    SplitMainSenderState * main_send_state = new SplitMainSenderState;
+    pkt->senderState = main_send_state;
+    main_send_state->fragments[0] = pkt1;
+    main_send_state->fragments[1] = pkt2;
+    main_send_state->outstanding = 2;
+    pkt1->senderState = new SplitFragmentSenderState(pkt, 0);
+    pkt2->senderState = new SplitFragmentSenderState(pkt, 1);
+
+    SplitFragmentSenderState * send_state =
+        dynamic_cast<SplitFragmentSenderState *>(pkt1->senderState);
+
+    memoryPort.schedTimingReq(pkt1, nextCycle());
+
+    send_state->clearFromParent();
+    send_state = dynamic_cast<SplitFragmentSenderState *>(
+            pkt2->senderState);
+
+    memoryPort.schedTimingReq(pkt2, nextCycle());
+    send_state->clearFromParent();
 }
 
 bool
@@ -738,6 +799,32 @@ GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
     DPRINTF(Accel, "Got a response for addr %#x\n", pkt->req->getVaddr());
 
     GraphEngine& graphEngine = dynamic_cast<GraphEngine&>(owner);
+
+    //Split requests
+    if (pkt->senderState) {
+        SplitFragmentSenderState * send_state =
+            dynamic_cast<SplitFragmentSenderState *>(pkt->senderState);
+        assert(send_state);
+        delete pkt->req;
+        delete pkt;
+        PacketPtr big_pkt = send_state->bigPkt;
+        delete send_state;
+
+        SplitMainSenderState * main_send_state =
+            dynamic_cast<SplitMainSenderState *>(big_pkt->senderState);
+        assert(main_send_state);
+        // Record the fact that this packet is no longer outstanding.
+        assert(main_send_state->outstanding != 0);
+        main_send_state->outstanding--;
+
+        if (main_send_state->outstanding) {
+            return true;
+        } else {
+            delete main_send_state;
+            big_pkt->senderState = NULL;
+            pkt = big_pkt;
+        }
+    }
 
     if (graphEngine.status == GettingParams) {
         graphEngine.recvParam(pkt);
