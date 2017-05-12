@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <queue>
 #include <random>
 #include <sstream>
 
@@ -22,6 +23,8 @@ const uint32_t INIT_VAL = 0;
 
 // Used for unsigned ints which underflow to get highest value
 const uint32_t INF = -1;
+
+const uint16_t SOURCE = 1;
 
 typedef struct {
     uint32_t id;
@@ -58,6 +61,7 @@ Vertex *ActiveVertexTable;
 uint32_t ActiveVertexCount;
 uint32_t maxIterations;
 uint32_t VertexCount, numEdges;
+VertexProperty *SerialVPropertyTable;
 
 void print_params(){
 
@@ -68,31 +72,44 @@ void print_params(){
         std::cout << i << " " << EdgeTable[i].srcId << " " <<
             EdgeTable[i].destId << " " << EdgeTable[i].weight << std::endl;
     }
-
+/*
     std::cout << "\n*****EdgeIdTable (0x" << EdgeIdTable << ")*****\n";
     for (uint32_t i=1; i<=VertexCount; i++) {
         std::cout << i << " " << EdgeIdTable[i] << std::endl;
     }
-
+*/
     std::cout << "\nActiveVertexCount: " << ActiveVertexCount << std::endl;
-    std::cout << "\n*****ActiveVertexTable (0x" << ActiveVertexTable
+/*    std::cout << "\n*****ActiveVertexTable (0x" << ActiveVertexTable
         << ")*****\n";
+
     for (uint32_t i=1; i<=ActiveVertexCount; i++) {
         std::cout << i << " " << ActiveVertexTable[i].id << " " <<
             ActiveVertexTable[i].property << std::endl;
     }
-
+*/
+#ifdef ACCEL
     std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
         << ")*****\n";
+
     for (uint32_t i=1; i<=VertexCount; i++) {
         std::cout << i << " " << VertexPropertyTable[i] << std::endl;
     }
+#else
+    std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
+        << ")*****\n";
 
+    for (uint32_t i=1; i<=VertexCount; i++) {
+        std::cout << i << " " << SerialVPropertyTable[i] << std::endl;
+    }
+
+#endif
+/*
     std::cout << "\n*****VTempPropertyTable(0x" << VTempPropertyTable
         << ")*****\n";
 
     std::cout << "\n*****VConstPropertyTable(0x" << VConstPropertyTable
         << ")*****\n";
+*/
 }
 
 // This function is algo-specific
@@ -102,11 +119,13 @@ void populate_params() {
         VertexPropertyTable[i] = INF;
         VTempPropertyTable[i]  = INF;
         VConstPropertyTable[i] = INF;
+        SerialVPropertyTable[i] = INF;
         if (EdgeIdTable[i] != INIT_VAL)
             ActiveVertexTable[++ActiveVertexCount] = {i, INF};
     }
-    VertexPropertyTable[1] = 0;
-    ActiveVertexTable[1].property = 0;
+    VertexPropertyTable[SOURCE] = 0;
+    SerialVPropertyTable[SOURCE] = 0;
+    ActiveVertexTable[SOURCE].property = 0;
 }
 
 // Note: assumes vertex numbering from 1..N
@@ -177,6 +196,8 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
     VConstPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
                             sizeof(VertexProperty));
     ActiveVertexTable = (Vertex*)malloc((VertexCount+1)*sizeof(Vertex));
+    SerialVPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
+                            sizeof(VertexProperty));
 
     // Needed for check to insert and add to active list
     for (int i=0; i<m; i++) {
@@ -184,17 +205,14 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
     }
 
     int edgeCtr = 1;
-    uint16_t u, uPrev, v;
+    uint16_t u, v;
     uint32_t w;
-    uPrev = INIT_VAL;
     while (std::getline(in, line)) {
         std::istringstream edge_stream(line);
         edge_stream >> u;
         // If first occurence, then add it to EdgeIdTable
-        if (u!=uPrev){
-            assert(EdgeIdTable[u]==INIT_VAL);
+        if (EdgeIdTable[u]==INIT_VAL){
             EdgeIdTable[u] = edgeCtr;
-            uPrev = u;
         }
         if (read_weights) {
             edge_stream >> v >> w;
@@ -212,6 +230,41 @@ void read_in_mtx(std::ifstream &in, bool &needs_weights) {
 
     needs_weights = !read_weights;
     return;
+}
+
+class CompareNode {
+  public:
+    // Returns true if b has higher priority i.e closer to source
+    bool operator()(uint16_t a, uint16_t b)
+    {
+       return SerialVPropertyTable[b] < SerialVPropertyTable[a];
+    }
+};
+
+// Simple, serial implementation to compare with
+void sssp()
+{
+    std::priority_queue <uint16_t, std::vector<uint16_t>, CompareNode> queue;
+    uint16_t u, v;
+    queue.empty();
+    queue.push(SOURCE);
+
+    while (!queue.empty()) {
+        u = queue.top();
+        queue.pop();
+        uint32_t edgeId = EdgeIdTable[u];
+        Edge edge = EdgeTable[edgeId++];
+        while (edge.srcId == u) {
+            v = edge.destId;
+            uint32_t destU = SerialVPropertyTable[u];
+            uint32_t destV = SerialVPropertyTable[v];
+            if (destV > destU + edge.weight) {
+                SerialVPropertyTable[v] = destU + edge.weight;
+                queue.push(v);
+            }
+            edge = EdgeTable[edgeId++];
+        }
+    }
 }
 
 void sssp_accel ()
@@ -234,13 +287,24 @@ void sssp_accel ()
     while (watch != 12); // spin
 }
 
+void verify ()
+{
+    for (uint16_t i=1; i<=VertexCount; i++) {
+        if (VertexPropertyTable[i] != SerialVPropertyTable[i]) {
+            std::cout << "Verification error\n";
+            std::cout << "i:" << i << " Serial:" << SerialVPropertyTable [i]
+                << " Accel:" << VertexPropertyTable[i] << std::endl;
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
 
-    if (argc != 4) {
+    if (argc != 5) {
         std::cout << "Incorrect number of arguments: " << argc << std::endl;
         std::cout << "Usage: " << argv[0] <<
-            "</path/to/file> <num_iterations> <weights>\n";
+            "</path/to/file> <num_iterations> <weights> <print_params>\n";
         exit(1);
     }
 
@@ -249,6 +313,9 @@ int main(int argc, char *argv[])
     bool needsWeights = false;
     if (atoi(argv[3]) == 1)
         needsWeights = true;
+    bool printParams = false;
+    if (atoi(argv[4]) == 1)
+        printParams = true;
 
     #ifdef ACCEL
     int fd = open("/dev/graph_engine", 0);
@@ -264,7 +331,8 @@ int main(int argc, char *argv[])
     //Read in the File and
     read_in_mtx(file, needsWeights);
     populate_params();
-    print_params();
+    if (printParams)
+        print_params();
 
     #ifdef M5OP
     m5_work_begin(0,0);
@@ -273,13 +341,19 @@ int main(int argc, char *argv[])
     #ifdef ACCEL
     sssp_accel();
     #else
-//    daxpy(X, Y, alpha, N);
+    sssp();
     #endif
 
     #ifdef M5OP
     m5_work_end(0,0);
     #endif
+    if (printParams)
+        print_params();
 
-    print_params();
+    #ifdef ACCEL
+    sssp();
+    verify();
+    #endif
+
     return 0;
 }
