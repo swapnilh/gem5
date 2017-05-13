@@ -5,6 +5,13 @@ from Device import BasicPioDevice
 from X86TLB import X86TLB
 from Process import EmulatedDriver
 
+class GraphAlgorithm(Enum): vals = ['BFS',
+                                    'SSSP',
+                                    'TriCount',
+                                    'PageRank',
+                                    'CF',
+                                    'BC']
+
 class Daxpy(BasicPioDevice):
     type = 'Daxpy'
     cxx_header = "accel/daxpy.hh"
@@ -30,6 +37,7 @@ class GraphEngine(BasicPioDevice):
     memory_port = MasterPort("Port to memory")
     system = Param.System(Parent.any, "system object")
 
+    algorithm = Param.GraphAlgorithm('BFS', "Graph Algorithm configured")
     max_unroll = Param.Int(8, "Max number of concurrent iterations of loop")
 
     tlb = Param.X86TLB(X86TLB(), "TLB/MMU to walk page table")
@@ -40,7 +48,3 @@ class GraphEngineDriver(EmulatedDriver):
     filename = "graph_engine"
 
     hardware = Param.GraphEngine("The Graph Engine hardware")
-
-class SSSP(GraphEngine):
-    type = 'SSSP'
-    cxx_header = "accel/graph_accel.hh"

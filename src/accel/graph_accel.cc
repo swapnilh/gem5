@@ -6,18 +6,13 @@
 
 using namespace std;
 
-SSSP::SSSP(const Params *p) : GraphEngine (p)
-{
-}
-
 VertexProperty
 SSSP::processEdge(VertexProperty weight, VertexProperty
                     srcProp, VertexProperty dstProp)
 {
     if (srcProp == INF)
         return INF;
-    else
-        return srcProp+weight;
+    return srcProp+weight;
 }
 
 VertexProperty
@@ -33,10 +28,4 @@ SSSP::apply(VertexProperty oldProp,
             VertexProperty vConstProp)
 {
     return min(tempProp, oldProp);
-}
-
-SSSP*
-SSSPParams::create()
-{
-    return new SSSP(this);
 }

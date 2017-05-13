@@ -1,21 +1,30 @@
 #ifndef __ACCEL_GRAPH_ACCEL_HH__
 #define __ACCEL_GRAPH_ACCEL_HH__
 
-#include "accel/graph_engine.hh"
-#include "params/SSSP.hh"
+#include "accel/graph.hh"
 
 /*
 VertexProperty min(VertexProperty A, VertexProperty B){
     return (A > B)? B : A;
 }
 */
+class GraphAccel
+{
+    public:
+    virtual VertexProperty processEdge(VertexProperty weight, VertexProperty
+                                        srcProp, VertexProperty dstProp) = 0;
 
-class SSSP : public GraphEngine
+    virtual VertexProperty reduce(VertexProperty temp,
+                                   VertexProperty result) = 0;
+
+    virtual VertexProperty apply(VertexProperty oldProp,
+                                 VertexProperty tempProp,
+                                 VertexProperty vConstProp) = 0;
+};
+
+class SSSP : public GraphAccel
 {
   public:
-
-    typedef SSSPParams Params;
-    SSSP(const Params *p);
 
     VertexProperty processEdge(VertexProperty weight, VertexProperty
                                 srcProp, VertexProperty dstProp) override;

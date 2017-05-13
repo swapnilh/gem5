@@ -4,6 +4,7 @@
 
 #include "cpu/translation.hh"
 #include "debug/Accel.hh"
+#include "enums/GraphAlgorithm.hh"
 #include "mem/packet_access.hh"
 
 using namespace std;
@@ -11,11 +12,36 @@ using namespace std;
 GraphEngine::GraphEngine(const Params *p) :
     BasicPioDevice(p, 4096), completedIterations(0),
     UpdatedActiveVertexCount(0), procFinished(0), applyFinished(0),
-    memoryPort(p->name+".memory_port", this), monitorAddr(0),
-    paramsAddr(0), context(nullptr), tlb(p->tlb), maxUnroll(p->max_unroll),
-    status(Uninitialized), runEvent(this)
+    memoryPort(p->name+".memory_port", this),
+    monitorAddr(0), paramsAddr(0), context(nullptr), tlb(p->tlb),
+    maxUnroll(p->max_unroll), status(Uninitialized), runEvent(this)
 {
     assert(this->pioAddr == p->pio_addr);
+    // Attach correct accelerator based on config
+    switch (p->algorithm) {
+        case Enums::GraphAlgorithm::SSSP:
+            algorithm = new SSSP();
+            DPRINTF(Accel, "Instantiating an SSSP accelerator\n");
+            break;
+/*        case Enums::GraphAlgorithm::BFS:
+            algorithm = new SSSP();
+            break;
+        case Enums::GraphAlgorithm::PageRank:
+            algorithm = new SSSP();
+            break;
+        case Enums::GraphAlgorithm::TriCount:
+            algorithm = new SSSP();
+            break;
+        case Enums::GraphAlgorithm::CF:
+            algorithm = new SSSP();
+            break;
+        case Enums::GraphAlgorithm::BC:
+            algorithm = new SSSP();
+            break;
+*/
+        default:
+            panic("Graph Algorithm unimplemented");
+    }
 }
 
 BaseMasterPort &
@@ -352,7 +378,8 @@ GraphEngine::ProcLoopIteration::stage4()
 void
 GraphEngine::ProcLoopIteration::stage5()
 {
-    resProp = accel->processEdge(edge.weight, src.property, destProp);
+    resProp = accel->algorithm->processEdge(edge.weight, src.property,
+                                            destProp);
     DPRINTFS(Accel, accel, "src:%" PRIu64 " dest:%" PRIu64 " edgeweight:%"
             PRIu32 " resProp:%" PRIu64 "\n", src.id, edge.destId, tempProp,
             resProp);
@@ -377,7 +404,7 @@ GraphEngine::ProcLoopIteration::stage6()
 {
     DPRINTFS(Accel, accel, "src:%d dest:%d tempProp:%" PRIu64 " resProp:%"
             PRIu64 "\n", i, edge.destId, tempProp, resProp);
-    tempProp = accel->reduce(tempProp, resProp);
+    tempProp = accel->algorithm->reduce(tempProp, resProp);
     DPRINTFS(Accel, accel, " reduced to %" PRIu64 "\n", tempProp);
     uint8_t *tempWrite = new uint8_t[8];
     *(VertexProperty*)tempWrite = tempProp;
@@ -415,7 +442,6 @@ GraphEngine::ProcLoopIteration::recvResponse(PacketPtr pkt)
             break;
         case 2:
             pkt->writeData((uint8_t*)&edgeId);
-//            assert(edgeId>=0); TODO
             if (edgeId == INIT_VAL)
                 finishIteration();
             else
@@ -507,7 +533,7 @@ GraphEngine::ApplyLoopIteration::stage10()
 void
 GraphEngine::ApplyLoopIteration::stage11()
 {
-    tempProp = accel->apply(vProp, tempProp, vConstProp);
+    tempProp = accel->algorithm->apply(vProp, tempProp, vConstProp);
     stage = 11;
     if (tempProp != vProp) {
         // Store VertexPropertyTable[i] = tempProp
@@ -847,8 +873,7 @@ GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
 GraphEngine*
 GraphEngineParams::create()
 {
-    return (GraphEngine*)NULL;
-    //return new GraphEngine(this); TODO FIXME
+    return new GraphEngine(this);
 }
 
 GraphEngineDriver*

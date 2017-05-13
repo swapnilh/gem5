@@ -4,6 +4,8 @@
 #include <map>
 #include <sstream>
 
+#include "accel/graph.hh"
+#include "accel/graph_accel.hh"
 #include "arch/tlb.hh"
 #include "cpu/thread_context.hh"
 #include "cpu/translation.hh"
@@ -14,27 +16,6 @@
 #include "sim/emul_driver.hh"
 #include "sim/process.hh"
 #include "sim/system.hh"
-
-typedef uint64_t NodeId;
-
-typedef uint64_t VertexProperty;
-
-typedef struct {
-    NodeId id;
-    VertexProperty property;
-} Vertex;
-
-typedef struct {
-    NodeId srcId;
-    NodeId destId;
-    VertexProperty weight;
-} Edge;
-
-// Used for nodes with no outgoing edges
-const NodeId INIT_VAL = 0;
-
-// Used for unsigned ints which underflow to get highest value
-const VertexProperty INF = -1;
 
 class GraphEngine : public BasicPioDevice
 {
@@ -78,15 +59,7 @@ class GraphEngine : public BasicPioDevice
     /* Track streams finished with apply phase */
     int applyFinished;
 
-    virtual VertexProperty processEdge(VertexProperty weight, VertexProperty
-                                        srcProp, VertexProperty dstProp) = 0;
-
-    virtual VertexProperty reduce(VertexProperty temp,
-                                   VertexProperty result) = 0;
-
-    virtual VertexProperty apply(VertexProperty oldProp,
-                                 VertexProperty tempProp,
-                                 VertexProperty vConstProp) = 0;
+    GraphAccel *algorithm;
 
   private:
 
