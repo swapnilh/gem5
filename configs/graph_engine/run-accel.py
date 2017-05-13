@@ -54,12 +54,21 @@ from caches import *
 # import the SimpleOpts module
 import SimpleOpts
 
+from enum import Enum
+
 SimpleOpts.add_option("--max_unroll", type='int',
                       default=GraphEngine.max_unroll,
                       help = "Number of times to unroll in accel."
                       " Default: %d" % (GraphEngine.max_unroll))
 SimpleOpts.add_option("--args", type='string',
                       default="", help ="arguments to pass to the binary")
+SimpleOpts.add_option("--algorithm", type='string',
+                      default=GraphEngine.algorithm, help ="algorithm for the"
+                      "graph accelerator. Default: %s" %
+                      (GraphEngine.algorithm))
+SimpleOpts.add_option("--binary", type='string',
+                      default="applications/graph_engine/graph-engine-accel",
+                      help ="executable to be run")
 
 # Set the usage message to display
 SimpleOpts.set_usage("usage: %prog [options]")
@@ -67,11 +76,7 @@ SimpleOpts.set_usage("usage: %prog [options]")
 # Finalize the arguments and grab the opts so we can pass it on to our objects
 (opts, args) = SimpleOpts.parse_args()
 
-# Default to running 'graph_engine'
-binary = 'applications/graph_engine/graph-engine-accel'
-
-# Check if there was a binary passed in via the command line and error if
-# there are too many arguments
+# Cause error if there are too many arguments
 if len(args) != 0:
     m5.panic("Incorrect number of arguments!")
 
@@ -89,8 +94,9 @@ system.mem_ranges = [AddrRange('512MB')] # Create an address range
 
 # Create a simple CPU
 system.cpu = TimingSimpleCPU()
-system.graph_engine = SSSP(pio_addr = 0x200000000,
-                                max_unroll=opts.max_unroll)
+system.graph_engine = GraphEngine(pio_addr = 0x200000000,
+                                max_unroll=opts.max_unroll,
+                                algorithm=opts.algorithm)
 system.graph_engine_driver = GraphEngineDriver(hardware=system.graph_engine,
                                             filename="graph_engine")
 
@@ -151,7 +157,7 @@ system.mem_ctrl.port = system.membus.master
 process = Process()
 # Set the command
 # cmd is a list which begins with the executable (like argv)
-process.cmd = [binary] + opts.args.split()
+process.cmd = [opts.binary] + opts.args.split()
 # Set up the driver
 process.drivers = [system.graph_engine_driver]
 # Set the cpu to use the process as its workload and create thread contexts
