@@ -1,14 +1,14 @@
 
-all: graph-engine graph-engine-gem5 graph-engine-accel
+all: graph-app graph-app-gem5 graph-app-accel
 
-graph-engine: graph_engine.cpp
-	g++ graph_engine.cpp -o graph-engine -std=c++11 -O2 -static -g
+graph-app: main.cpp
+	g++ main.cpp -o graph-app -std=c++11 -O2 -static -g
 
-graph-engine-accel: graph_engine.cpp
-	g++ graph_engine.cpp -o graph-engine-accel -std=c++11 -O2 -static -g -DACCEL -DM5OP  ../../util/m5/m5op_x86.S
+graph-app-accel: main.cpp
+	g++ main.cpp -o graph-app-accel -std=c++11 -O2 -static -g -DACCEL -DM5OP  ../../util/m5/m5op_x86.S
 
-graph-engine-gem5: graph_engine.cpp
-	g++ graph_engine.cpp -o graph-engine-gem5 -std=c++11 -O2 -DM5OP ../../util/m5/m5op_x86.S -static -g
+graph-app-gem5: main.cpp
+	g++ main.cpp -o graph-app-gem5 -std=c++11 -O2 -DM5OP ../../util/m5/m5op_x86.S -static -g
 
 clean:
-	rm -f graph-engine graph-engine-gem5 graph-engine-accel
+	rm -f graph-app graph-app-gem5 graph-app-accel
