@@ -1,5 +1,6 @@
 #include <cstring>
 
+#include "bfs.h"
 #include "sssp.h"
 
 int main(int argc, char *argv[])
@@ -20,6 +21,8 @@ int main(int argc, char *argv[])
 
     if (!strcmp(workload, "sssp")) {
         app = new SSSP(maxIterations);
+    } else if (!strcmp(workload, "bfs")) {
+        app = new BFS(maxIterations);
     } else {
         std::cout << "Error! " << workload << " not available.\n";
         exit(1);
@@ -62,6 +65,7 @@ int main(int argc, char *argv[])
     #ifdef M5OP
     m5_work_end(0,0);
     #endif
+
     if (printParams)
         app->print_params();
 

@@ -1,13 +1,12 @@
 #include "graph_application.h"
 
-
-class SSSP : public GraphApplication {
+class BFS: public GraphApplication {
 
   private:
     const NodeId SOURCE = 1;
 
   public:
-    SSSP (int maxIterations) : GraphApplication(maxIterations)
+    BFS (int maxIterations) : GraphApplication(maxIterations)
         {}
 
     // This function is algo-specific
@@ -18,13 +17,13 @@ class SSSP : public GraphApplication {
             VTempPropertyTable[i]  = INF;
             VConstPropertyTable[i] = INF;
             SerialVPropertyTable[i] = INF;
-            if (EdgeIdTable[i] != INIT_VAL)
-                ActiveVertexTable[++ActiveVertexCount] = {i, INF};
         }
-        VertexPropertyTable[SOURCE] = 0;
+        ActiveVertexTable[++ActiveVertexCount] = {SOURCE, 0};
+        VertexPropertyTable[SOURCE]  = 0;
         SerialVPropertyTable[SOURCE] = 0;
-        ActiveVertexTable[SOURCE].property = 0;
+        VTempPropertyTable[SOURCE]   = 0;
     }
+
 
     class CompareNode {
         public:
@@ -58,8 +57,8 @@ class SSSP : public GraphApplication {
                 v = edge.destId;
                 VertexProperty destU = u.property;
                 VertexProperty destV = SerialVPropertyTable[v];
-                if (destV > destU + edge.weight) {
-                    SerialVPropertyTable[v] = destU + edge.weight;
+                if (destV > destU + 1) {
+                    SerialVPropertyTable[v] = destU + 1;
                     queue.push({v, SerialVPropertyTable[v]});
                 }
                 edge = EdgeTable[edgeId++];

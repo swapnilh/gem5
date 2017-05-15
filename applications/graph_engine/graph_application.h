@@ -1,3 +1,6 @@
+#ifndef __ACCEL_GRAPH_APPLICATION_HH__
+#define __ACCEL_GRAPH_APPLICATION_HH__
+
 #include <cassert>
 #include <cstdio>
 #include <fstream>
@@ -59,22 +62,22 @@ class GraphApplication {
             std::cout << i << " " << EdgeTable[i].srcId << " " <<
                 EdgeTable[i].destId << " " << EdgeTable[i].weight << std::endl;
         }
-        /*
-           std::cout << "\n*****EdgeIdTable (0x" << EdgeIdTable << ")*****\n";
-           for (NodeId i=1; i<=VertexCount; i++) {
-           std::cout << i << " " << EdgeIdTable[i] << std::endl;
-           }
-           */
+/*
+        std::cout << "\n*****EdgeIdTable (0x" << EdgeIdTable << ")*****\n";
+        for (NodeId i=1; i<=VertexCount; i++) {
+            std::cout << i << " " << EdgeIdTable[i] << std::endl;
+        }
+*/
         std::cout << "\nActiveVertexCount: " << ActiveVertexCount << std::endl;
-        /*    std::cout << "\n*****ActiveVertexTable (0x" << ActiveVertexTable
-              << ")*****\n";
 
-              for (NodeId i=1; i<=ActiveVertexCount; i++) {
-              std::cout << i << " " << ActiveVertexTable[i].id << " " <<
-              ActiveVertexTable[i].property << std::endl;
-              }
-              */
-
+        std::cout << "\n*****ActiveVertexTable (0x" << ActiveVertexTable
+            << ")*****\n";
+/*
+        for (NodeId i=1; i<=ActiveVertexCount; i++) {
+            std::cout << i << " " << ActiveVertexTable[i].id << " " <<
+                ActiveVertexTable[i].property << std::endl;
+        }
+*/
 
 #ifdef ACCEL
         std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
@@ -83,8 +86,9 @@ class GraphApplication {
         for (NodeId i=1; i<=VertexCount; i++) {
             std::cout << i << " " << VertexPropertyTable[i] << std::endl;
         }
+
 #else
-        std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
+        std::cout << "\n*****VertexPropertyTable(0x" << SerialVPropertyTable
             << ")*****\n";
 
         for (NodeId i=1; i<=VertexCount; i++) {
@@ -93,13 +97,16 @@ class GraphApplication {
 
 #endif
 
-        /*
+/*
            std::cout << "\n*****VTempPropertyTable(0x" << VTempPropertyTable
            << ")*****\n";
 
+           for (NodeId i=1; i<=VertexCount; i++) {
+            std::cout << i << " " << VTempPropertyTable[i] << std::endl;
+           }
            std::cout << "\n*****VConstPropertyTable(0x" << VConstPropertyTable
            << ")*****\n";
-           */
+*/
     }
     // Note: assumes vertex numbering from 1..N
     // Note: weights casted to type WeightT_
@@ -183,23 +190,23 @@ class GraphApplication {
         NodeId u, v;
         VertexProperty w;
         while (std::getline(in, line)) {
-        std::istringstream edge_stream(line);
-        edge_stream >> u;
-        // If first occurence, then add it to EdgeIdTable
-        if (EdgeIdTable[u]==INIT_VAL){
-            EdgeIdTable[u] = edgeCtr;
-        }
-        if (read_weights) {
-            edge_stream >> v >> w;
-            EdgeTable[edgeCtr++] = {u, v, w};
-            if (undirected)
-                EdgeTable[edgeCtr++] = {v, u, w};
-        } else {
-            edge_stream >> v;
-            EdgeTable[edgeCtr++] = {u, v, 1};
-            if (undirected)
-                EdgeTable[edgeCtr++] = {v, u, 1};
-        }
+            std::istringstream edge_stream(line);
+            edge_stream >> u;
+            // If first occurence, then add it to EdgeIdTable
+            if (EdgeIdTable[u]==INIT_VAL){
+                EdgeIdTable[u] = edgeCtr;
+            }
+            if (read_weights) {
+                edge_stream >> v >> w;
+                EdgeTable[edgeCtr++] = {u, v, w};
+                if (undirected)
+                    EdgeTable[edgeCtr++] = {v, u, w};
+            } else {
+                edge_stream >> v;
+                EdgeTable[edgeCtr++] = {u, v, 1};
+                if (undirected)
+                    EdgeTable[edgeCtr++] = {v, u, 1};
+            }
         }
         assert(edgeCtr==edges+1);
 
@@ -241,3 +248,4 @@ class GraphApplication {
 
     virtual void exec_on_host() = 0;
 };
+#endif // __ACCEL_GRAPH_APPLICATION_HH__

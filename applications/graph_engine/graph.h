@@ -8,7 +8,7 @@ typedef uint64_t VertexProperty;
 const NodeId INIT_VAL = 0;
 
 // Used for unsigned ints which underflow to get highest value
-const VertexProperty INF = -1;
+const VertexProperty INF = (VertexProperty)-1;
 
 typedef struct {
     NodeId id;
