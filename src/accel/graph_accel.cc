@@ -42,8 +42,7 @@ VertexProperty
 BFS::reduce(VertexProperty tempProp,
                 VertexProperty result)
 {
-    // Hack - result holds the Iteration Count
-    return min(tempProp, result);
+    return min(tempProp, (VertexProperty)iterationCount);
 }
 
 VertexProperty

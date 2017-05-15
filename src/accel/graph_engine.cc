@@ -24,10 +24,10 @@ GraphEngine::GraphEngine(const Params *p) :
             DPRINTF(Accel, "Instantiating an SSSP accelerator\n");
             break;
         case Enums::GraphAlgorithm::BFS:
-            algorithm = new SSSP();
+            algorithm = new BFS();
             break;
         case Enums::GraphAlgorithm::PageRank:
-            algorithm = new SSSP();
+            algorithm = new PageRank();
             break;
 /*        case Enums::GraphAlgorithm::TriCount:
             algorithm = new SSSP();
@@ -403,7 +403,8 @@ void
 GraphEngine::ProcLoopIteration::stage6()
 {
     DPRINTFS(Accel, accel, "src:%d dest:%d tempProp:%" PRIu64 " resProp:%"
-            PRIu64 "\n", i, edge.destId, tempProp, resProp);
+            PRIu64 "\n", src.id, edge.destId, tempProp,
+            resProp);
     tempProp = accel->algorithm->reduce(tempProp, resProp);
     DPRINTFS(Accel, accel, " reduced to %" PRIu64 "\n", tempProp);
     uint8_t *tempWrite = new uint8_t[8];
@@ -557,9 +558,11 @@ GraphEngine::ApplyLoopIteration::stage12()
     v.property = tempProp;
     stage = 12;
     // Store ActiveVertex[UpdatedActiveVertexCount++] = v
+    accel->UpdatedActiveVertexCount++;
+    DPRINTFS(Accel, accel, "Adding %d to Active list, ActiveVertexCount:%d\n",
+        i, accel->UpdatedActiveVertexCount);
     uint8_t *tempWrite = new uint8_t[16];
     *(Vertex*)tempWrite = v;
-    ++accel->UpdatedActiveVertexCount;
     assert(params.ActiveVertexTable+16*accel->UpdatedActiveVertexCount >=
             params.ActiveVertexTable);
     accel->accessMemoryCallback(params.ActiveVertexTable
@@ -582,6 +585,7 @@ GraphEngine::ApplyLoopIteration::stage13()
         if (accel->applyFinished == params.VertexCount) {
             accel->applyFinished = 0;
             accel->completedIterations++;
+            accel->algorithm->incrementIterationCount();
             DPRINTFS(Accel, accel, "Finished Apply Phase [%d/%d]!\n",
                         accel->completedIterations, params.maxIterations);
             if (accel->completedIterations == params.maxIterations) {

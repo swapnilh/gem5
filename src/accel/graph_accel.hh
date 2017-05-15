@@ -10,7 +10,18 @@ VertexProperty min(VertexProperty A, VertexProperty B){
 */
 class GraphAccel
 {
-    public:
+
+  public:
+
+    uint32_t iterationCount;
+
+    GraphAccel() : iterationCount(1)
+        {}
+
+    void incrementIterationCount() {
+        iterationCount++;
+    }
+
     virtual VertexProperty processEdge(VertexProperty weight, VertexProperty
                                         srcProp, VertexProperty dstProp) = 0;
 
