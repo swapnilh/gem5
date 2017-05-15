@@ -1,6 +1,8 @@
 #ifndef __ACCEL_GRAPH_HH__
 #define __ACCEL_GRAPH_HH__
 
+#include <stdint.h>
+
 typedef uint64_t NodeId;
 
 typedef uint64_t VertexProperty;
