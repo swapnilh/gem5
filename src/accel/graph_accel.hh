@@ -38,4 +38,36 @@ class SSSP : public GraphAccel
 
 };
 
+class BFS : public GraphAccel
+{
+  public:
+
+    VertexProperty processEdge(VertexProperty weight, VertexProperty
+                                srcProp, VertexProperty dstProp) override;
+
+    VertexProperty reduce(VertexProperty temp,
+                            VertexProperty result) override;
+
+    VertexProperty apply(VertexProperty oldProp,
+                        VertexProperty tempProp,
+                        VertexProperty vConstProp) override;
+
+};
+
+class PageRank : public GraphAccel
+{
+  public:
+
+    VertexProperty processEdge(VertexProperty weight, VertexProperty
+                                srcProp, VertexProperty dstProp) override;
+
+    VertexProperty reduce(VertexProperty temp,
+                            VertexProperty result) override;
+
+    VertexProperty apply(VertexProperty oldProp,
+                        VertexProperty tempProp,
+                        VertexProperty vConstProp) override;
+
+};
+
 #endif //__ACCEL_GRAPH_ACCEL_HH__

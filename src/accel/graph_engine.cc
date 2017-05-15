@@ -23,13 +23,13 @@ GraphEngine::GraphEngine(const Params *p) :
             algorithm = new SSSP();
             DPRINTF(Accel, "Instantiating an SSSP accelerator\n");
             break;
-/*        case Enums::GraphAlgorithm::BFS:
+        case Enums::GraphAlgorithm::BFS:
             algorithm = new SSSP();
             break;
         case Enums::GraphAlgorithm::PageRank:
             algorithm = new SSSP();
             break;
-        case Enums::GraphAlgorithm::TriCount:
+/*        case Enums::GraphAlgorithm::TriCount:
             algorithm = new SSSP();
             break;
         case Enums::GraphAlgorithm::CF:
