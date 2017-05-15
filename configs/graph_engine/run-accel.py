@@ -67,7 +67,7 @@ SimpleOpts.add_option("--algorithm", type='string',
                       "graph accelerator. Default: %s" %
                       (GraphEngine.algorithm))
 SimpleOpts.add_option("--binary", type='string',
-                      default="applications/graph_engine/graph-engine-accel",
+                      default="applications/graph_engine/graph-app-accel",
                       help ="executable to be run")
 
 # Set the usage message to display
