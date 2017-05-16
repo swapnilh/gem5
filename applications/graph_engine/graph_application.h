@@ -1,3 +1,32 @@
+/*
+ * Copyright (c) 1999-2017 Mark D. Hill and David A. Wood
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Authors: Swapnil Haria
+ */
+
 #ifndef __ACCEL_GRAPH_APPLICATION_HH__
 #define __ACCEL_GRAPH_APPLICATION_HH__
 
@@ -9,7 +38,7 @@
 #include <random>
 #include <sstream>
 
-#include "graph.h"
+#include "../../src/accel/graph.hh"
 
 #ifdef M5OP
 #include "../../util/m5/m5op.h"
@@ -53,196 +82,16 @@ class GraphApplication {
 
     VertexProperty *SerialVPropertyTable;
 
-    void print_params(){
+    void print_params();
 
-        std::cout << "\n Printing Params \n";
-
-        std::cout << "*****EdgeTable (0x" << EdgeTable << ")*****\n";
-        for (NodeId i=1; i<=numEdges; i++) {
-            std::cout << i << " " << EdgeTable[i].srcId << " " <<
-                EdgeTable[i].destId << " " << EdgeTable[i].weight << std::endl;
-        }
-/*
-        std::cout << "\n*****EdgeIdTable (0x" << EdgeIdTable << ")*****\n";
-        for (NodeId i=1; i<=VertexCount; i++) {
-            std::cout << i << " " << EdgeIdTable[i] << std::endl;
-        }
-*/
-        std::cout << "\nActiveVertexCount: " << ActiveVertexCount << std::endl;
-
-        std::cout << "\n*****ActiveVertexTable (0x" << ActiveVertexTable
-            << ")*****\n";
-/*
-        for (NodeId i=1; i<=ActiveVertexCount; i++) {
-            std::cout << i << " " << ActiveVertexTable[i].id << " " <<
-                ActiveVertexTable[i].property << std::endl;
-        }
-*/
-
-#ifdef ACCEL
-        std::cout << "\n*****VertexPropertyTable(0x" << VertexPropertyTable
-            << ")*****\n";
-
-        for (NodeId i=1; i<=VertexCount; i++) {
-            std::cout << i << " " << VertexPropertyTable[i] << std::endl;
-        }
-
-#else
-        std::cout << "\n*****VertexPropertyTable(0x" << SerialVPropertyTable
-            << ")*****\n";
-
-        for (NodeId i=1; i<=VertexCount; i++) {
-            std::cout << i << " " << SerialVPropertyTable[i] << std::endl;
-        }
-
-#endif
-
-/*
-           std::cout << "\n*****VTempPropertyTable(0x" << VTempPropertyTable
-           << ")*****\n";
-
-           for (NodeId i=1; i<=VertexCount; i++) {
-            std::cout << i << " " << VTempPropertyTable[i] << std::endl;
-           }
-           std::cout << "\n*****VConstPropertyTable(0x" << VConstPropertyTable
-           << ")*****\n";
-*/
-    }
     // Note: assumes vertex numbering from 1..N
     // Note: weights casted to type WeightT_
     // Taken from GAP BS reader.h
-    void read_in_mtx(std::ifstream &in, bool &needs_weights) {
-        std::string start, object, format, field, symmetry, line;
-        in >> start >> object >> format >> field >> symmetry >> std::ws;
-        if (start != "%%MatrixMarket") {
-            std::cout << ".mtx file did not start with %%MatrixMarket"
-                << std::endl;
-            std::exit(-21);
-        }
-        if ((object != "matrix") || (format != "coordinate")) {
-            std::cout << "only allow matrix coordinate format for .mtx"
-                << std::endl;
-            std::exit(-22);
-        }
-        if (field == "complex") {
-            std::cout << "do not support complex weights for .mtx"
-                << std::endl;
-            std::exit(-23);
-        }
-        bool read_weights;
-        if (field == "pattern") {
-            read_weights = false;
-        } else if ((field == "real") || (field == "double") ||
-                (field == "integer")) {
-            read_weights = true;
-        } else {
-            std::cout << "unrecognized field type for .mtx" << std::endl;
-            std::exit(-24);
-        }
-        bool undirected;
-        if (symmetry == "symmetric") {
-            undirected = true;
-        } else if ((symmetry == "general") || (symmetry == "skew-symmetric")) {
-            undirected = false;
-        } else {
-            std::cout << "unsupported symmetry type for .mtx" << std::endl;
-            std::exit(-25);
-        }
-        while (true) {
-            char c = in.peek();
-            if (c == '%') {
-                in.ignore(200, '\n');
-            } else {
-                break;
-            }
-        }
-        NodeId m, n, edges;
-        in >> m >> n >> edges >> std::ws;
-        if (m != n) {
-            std::cout << m << " " << n << " " << edges << std::endl;
-            std::cout << "matrix must be square for .mtx" << std::endl;
-            std::exit(-26);
-        }
+    void read_in_mtx(std::ifstream &in, bool &needs_weights);
 
-        VertexCount = m;
-        numEdges = edges;
-        std::cout << "Vertices:" << VertexCount << "\nEdges:" << numEdges <<
-            std::endl;
+    void exec_on_accel();
 
-        EdgeTable = (Edge*)malloc((numEdges+1)*sizeof(Edge));
-        EdgeIdTable = (NodeId*)malloc((VertexCount+1)*sizeof(NodeId));
-        VertexPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
-                sizeof(VertexProperty));
-        VTempPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
-                sizeof(VertexProperty));
-        VConstPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
-                sizeof(VertexProperty));
-        ActiveVertexTable = (Vertex*)malloc((VertexCount+1)*sizeof(Vertex));
-        SerialVPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
-                sizeof(VertexProperty));
-
-        // Needed for check to insert and add to active list
-        for (int i=0; i<m; i++) {
-            EdgeIdTable[i] = INIT_VAL;
-        }
-
-        NodeId edgeCtr = 1;
-        NodeId u, v;
-        VertexProperty w;
-        while (std::getline(in, line)) {
-            std::istringstream edge_stream(line);
-            edge_stream >> u;
-            // If first occurence, then add it to EdgeIdTable
-            if (EdgeIdTable[u]==INIT_VAL){
-                EdgeIdTable[u] = edgeCtr;
-            }
-            if (read_weights) {
-                edge_stream >> v >> w;
-                EdgeTable[edgeCtr++] = {u, v, w};
-                if (undirected)
-                    EdgeTable[edgeCtr++] = {v, u, w};
-            } else {
-                edge_stream >> v;
-                EdgeTable[edgeCtr++] = {u, v, 1};
-                if (undirected)
-                    EdgeTable[edgeCtr++] = {v, u, 1};
-            }
-        }
-        assert(edgeCtr==edges+1);
-
-        needs_weights = !read_weights;
-        return;
-    }
-    void exec_on_accel()
-    {
-        GraphParams params = {EdgeTable, EdgeIdTable, VertexPropertyTable,
-            VTempPropertyTable, VConstPropertyTable,
-            ActiveVertexTable, ActiveVertexCount,
-            VertexCount, maxIterations};
-        volatile int watch = 0;
-        volatile int* watch_addr = &watch;
-        volatile GraphParams* params_addr = &params;
-        asm volatile (
-                "mov %0,0x10000000\n"
-                "\tmov %1,0x10000000\n"
-                :
-                : "r"(watch_addr), "r"(params_addr)
-                :
-                );
-        printf("Entering spin loop\n");
-        while (watch != 12); // spin
-    }
-
-    void verify()
-    {
-        for (NodeId i=1; i<=VertexCount; i++) {
-            if (VertexPropertyTable[i] != SerialVPropertyTable[i]) {
-                std::cout << "Verification error\n";
-                std::cout << "i:" << i << " Serial:" << SerialVPropertyTable[i]
-                    << " Accel:" << VertexPropertyTable[i] << std::endl;
-            }
-        }
-    }
+    void verify();
 
     virtual void populate_params() = 0;
 

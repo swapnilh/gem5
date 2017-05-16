@@ -1,8 +1,6 @@
 #include <cstring>
 
-#include "bfs.h"
-#include "pagerank.h"
-#include "sssp.h"
+#include "algorithms.h"
 
 int main(int argc, char *argv[])
 {
