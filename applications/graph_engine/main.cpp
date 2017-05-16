@@ -1,6 +1,7 @@
 #include <cstring>
 
 #include "bfs.h"
+#include "pagerank.h"
 #include "sssp.h"
 
 int main(int argc, char *argv[])
@@ -23,6 +24,8 @@ int main(int argc, char *argv[])
         app = new SSSP(maxIterations);
     } else if (!strcmp(workload, "bfs")) {
         app = new BFS(maxIterations);
+    } else if (!strcmp(workload, "pagerank")) {
+        app = new PageRank(maxIterations);
     } else {
         std::cout << "Error! " << workload << " not available.\n";
         exit(1);
@@ -71,7 +74,9 @@ int main(int argc, char *argv[])
 
     #ifdef ACCEL
     app->exec_on_host();
-    app->verify();
+    // Not verifying pagerank
+    if (strcmp(workload, "pagerank"))
+        app->verify();
     #endif
 
     return 0;

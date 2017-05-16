@@ -57,6 +57,7 @@ VertexProperty
 PageRank::processEdge(VertexProperty weight, VertexProperty
                     srcProp, VertexProperty dstProp)
 {
+    // Hack - weight holds the outgoing degree of source
     return srcProp;
 }
 
@@ -73,5 +74,5 @@ PageRank::apply(VertexProperty oldProp,
             VertexProperty vConstProp)
 {
     // Hack - vConstProp holds Vdeg
-    return (0.85 + 0.15*tempProp)/vConstProp;
+    return (0.15 + 0.85*tempProp)/vConstProp;
 }
