@@ -47,8 +47,11 @@ int main(int argc, char *argv[])
       std::exit(-2);
     }
 
-    //Read in the File and
+    //Read in the File
+    std::cout << "Reading in the mtx file\n";
     app->read_in_mtx(file, needsWeights);
+
+    std::cout << "Populating params\n";
     app->populate_params();
     if (printParams)
         app->print_params();
@@ -71,7 +74,11 @@ int main(int argc, char *argv[])
         app->print_params();
 
     #ifdef ACCEL
+    std::cout << "Executing on host\n";
     app->exec_on_host();
+
+
+    std::cout << "Verifying vs CPU\n";
     // Not verifying pagerank
     if (strcmp(workload, "pagerank"))
         app->verify();

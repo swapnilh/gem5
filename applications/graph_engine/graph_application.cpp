@@ -129,6 +129,9 @@ GraphApplication::read_in_mtx(std::ifstream &in, bool &needs_weights) {
     NodeId u, v;
     VertexProperty w;
     while (std::getline(in, line)) {
+        if (edgeCtr%10000 == 0)
+            std::cout << "Read " << edgeCtr << "/" << edges << std::endl;
+
         std::istringstream edge_stream(line);
         edge_stream >> u;
         // If first occurence, then add it to EdgeIdTable
