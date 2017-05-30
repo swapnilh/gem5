@@ -1,6 +1,13 @@
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#include <cstdio>
 #include <cstring>
 
 #include "algorithms.h"
+
+void *m5_mem = NULL;
 
 int main(int argc, char *argv[])
 {
@@ -36,9 +43,33 @@ int main(int argc, char *argv[])
     if (atoi(argv[5]) == 1)
         printParams = true;
 
-    #ifdef ACCEL
-    int fd = open("/dev/graph_engine", 0);
-    uint64_t *driver = (uint64_t*)0x10000000;
+    int fd;
+    uint64_t *device_addr = NULL;
+    #ifdef FS
+    if ((fd = open("/dev/mem", O_RDWR|O_SYNC)) < 0 ) {
+        printf("Error opening file. \n");
+        close(fd);
+        return (-1);
+    }
+    device_addr = (uint64_t *)mmap((void*)0x10000000, 32768,
+                    PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0xFFFF8000);
+    if (device_addr == MAP_FAILED) {
+        perror("Can't mmap /dev/mem for device_addr");
+        exit(1);
+    }
+    std::cout << "Mmap-ed /dev/mem for device_addr\n";
+
+    m5_mem = mmap(NULL, 32768, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+                  M5OP_ADDR);
+    if (m5_mem == MAP_FAILED) {
+        perror("Can't mmap /dev/mem for m5_mem");
+        exit(1);
+    }
+    std::cout << "Mmap-ed /dev/mem for m5_mem\n";
+
+    #else
+    fd = open("/dev/graph_engine", 0);
+    device_addr = (uint64_t*)0x10000000;
     #endif
 
     std::ifstream file(filename);
@@ -61,7 +92,7 @@ int main(int argc, char *argv[])
     #endif
 
     #ifdef ACCEL
-    app->exec_on_accel();
+    app->exec_on_accel(device_addr);
     #else
     app->exec_on_host();
     #endif

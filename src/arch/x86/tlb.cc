@@ -228,7 +228,7 @@ TLB::finalizePhysical(RequestPtr req, ThreadContext *tc, Mode mode) const
 {
     Addr paddr = req->getPaddr();
 
-    AddrRange m5opRange(0xFFFF0000, 0xFFFFFFFF);
+    AddrRange m5opRange(0xFFFF0000, 0xFFFF7FFF);
 
     if (m5opRange.contains(paddr)) {
         req->setFlags(Request::MMAPPED_IPR | Request::GENERIC_IPR |
@@ -334,6 +334,9 @@ TLB::translate(RequestPtr req, ThreadContext *tc, Translation *translation,
             TlbEntry *entry = lookup(vaddr);
             if (!entry) {
                 if (FullSystem) {
+                    DPRINTF(TLB, "Handling a TLB miss for "
+                            "address %#x at pc %#x.\n",
+                            vaddr, tc->instAddr());
                     Fault fault = walker->start(tc, translation, req, mode);
                     if (timing || fault != NoFault) {
                         // This gets ignored in atomic mode.
@@ -377,6 +380,17 @@ TLB::translate(RequestPtr req, ThreadContext *tc, Translation *translation,
                     !(flags & (CPL0FlagBit << FlagShift)));
             CR0 cr0 = tc->readMiscRegNoEffect(MISCREG_CR0);
             bool badWrite = (!entry->writable && (inUser || cr0.wp));
+
+            if (badWrite) {
+                DPRINTF(TLB, "BadWrite: %#x, "
+                    "while doing protection checks.\n", badWrite);
+                AddrRange accelRange(0xFFFF8000, 0xFFFFFFFF);
+                if (accelRange.contains(entry->paddr)) {
+                    DPRINTF(TLB, "HACK: Allowing bad write to accelerator\n");
+                    badWrite = false;
+                }
+            }
+
             if ((inUser && !entry->user) || (mode == Write && badWrite)) {
                 // The page must have been present to get into the TLB in
                 // the first place. We'll assume the reserved bits are

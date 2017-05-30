@@ -89,7 +89,7 @@ class GraphApplication {
     // Taken from GAP BS reader.h
     void read_in_mtx(std::ifstream &in, bool &needs_weights);
 
-    void exec_on_accel();
+    void exec_on_accel(uint64_t *device_addr);
 
     void verify();
 

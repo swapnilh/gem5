@@ -156,8 +156,8 @@ GraphApplication::read_in_mtx(std::ifstream &in, bool &needs_weights) {
     return;
 }
 
-    void
-GraphApplication::exec_on_accel()
+void
+GraphApplication::exec_on_accel(uint64_t *device_addr)
 {
     GraphParams params = {EdgeTable, EdgeIdTable, VertexPropertyTable,
         VTempPropertyTable, VConstPropertyTable,
@@ -167,17 +167,17 @@ GraphApplication::exec_on_accel()
     volatile int* watch_addr = &watch;
     volatile GraphParams* params_addr = &params;
     asm volatile (
-            "mov %0,0x10000000\n"
-            "\tmov %1,0x10000000\n"
+            "mov %0, (%2)\n"
+            "\tmov %1, (%2)\n"
             :
-            : "r"(watch_addr), "r"(params_addr)
+            : "r"(watch_addr), "r"(params_addr), "r"(device_addr)
             :
             );
     printf("Entering spin loop\n");
     while (watch != 12); // spin
 }
 
-    void
+void
 GraphApplication::verify()
 {
     for (NodeId i=1; i<=VertexCount; i++) {

@@ -10,10 +10,10 @@
 using namespace std;
 
 GraphEngine::GraphEngine(const Params *p) :
-    BasicPioDevice(p, 4096), completedIterations(0),
+    BasicPioDevice(p, 32768), system(p->system), completedIterations(0),
     UpdatedActiveVertexCount(0), procFinished(0), applyFinished(0),
-    memoryPort(p->name+".memory_port", this),
-    monitorAddr(0), paramsAddr(0), context(nullptr), tlb(p->tlb),
+    memoryPort(p->name+".memory_port", this), monitorAddr(0),
+    paramsAddr(0), context(NULL), tlb(p->tlb),
     maxUnroll(p->max_unroll), status(Uninitialized), runEvent(this)
 {
     assert(this->pioAddr == p->pio_addr);
@@ -42,6 +42,7 @@ GraphEngine::GraphEngine(const Params *p) :
         default:
             panic("Graph Algorithm unimplemented");
     }
+
 }
 
 BaseMasterPort &
@@ -109,6 +110,10 @@ GraphEngine::write(PacketPtr pkt)
 
     if (monitorAddr != 0 && paramsAddr !=0) {
         status = Initialized;
+        //TODO what is the best place for this
+        // HACK - only works for single-thread execution
+        context = system->threadContexts[0];
+
         schedule(runEvent, clockEdge(Cycles(1)));
     }
 
@@ -665,7 +670,7 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
     RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
     req->taskId(taskId);
 
-    DPRINTF(Accel, "Tranlating for addr %#x\n", req->getVaddr());
+    DPRINTF(Accel, "Translating for addr %#x\n", req->getVaddr());
 
     Addr split_addr = roundDown(addr + size - 1, block_size);
     assert(split_addr <= addr || split_addr - addr < block_size);

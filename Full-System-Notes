@@ -1,0 +1,29 @@
+Here are some notes for how full-system simulation was achieved.
+
+1) Began with Jason's excellent blog post on setting up gem5 full system.
+http://www.lowepower.com/jason/setting-up-gem5-full-system.html
+
+2) Created an ubuntu 16.04 disk image and kernel binary hopefully still here-
+/u/s/w/swapnilh/private/2017_FOMA/gem5-FS-files/
+
+3) Use the linux kernel from here-
+https://github.com/swapnilh/linux
+
+4) Following instructions from 1 above, gem5init should be in /sbin/.
+We invoke this script on login through the root's bashrc file.
+----------- /root/.bashrc ------------
+# If not running interactively, don't do anything
+[ -z "$PS1" ] && return
+
+/sbin/gem5init   // <-- New line added
+
+5) To login automatically without being prompted for the password,
+we use the serial getty service
+-----------  /lib/systemd/system/serial-getty@.service -------------
+// Add autologin root flags to the commandline as shown below
+ExecStart=-/sbin/agetty --autologin root --keep-baud 115200,38400,9600 %I $TERM
+
+6) To avoid multiple terminals being launched, comment out ExecStart 
+from debug-shell service
+-----------  /lib/systemd/system/debug-shell.service -------------
+#ExecStart=/bin/bash // <- Line commented out

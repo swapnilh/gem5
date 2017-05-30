@@ -78,6 +78,9 @@ class GraphEngine : public BasicPioDevice
 
     FuncParams graphParams;
 
+    // System we operate in
+    System *system;
+
   public:
     int completedIterations;
 
