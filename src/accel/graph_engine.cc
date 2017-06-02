@@ -669,6 +669,9 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
 
     RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
     req->taskId(taskId);
+    if (mode == BaseTLB::Write) {
+            req->setFlags(Request::UNCACHEABLE);
+    }
 
     DPRINTF(Accel, "Translating for addr %#x\n", req->getVaddr());
 
@@ -775,8 +778,10 @@ GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
         DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
                ((ProcLoopIteration*)iter)->name());
         if (it_proc != procAddressCallbacks.end()) {
-            // Only tempProp reads are okay to conflict
-            assert(((ProcLoopIteration*)iter)->getStage() == 4);
+            // Only dest property reads or edge reads (when one extra
+            // final edge is read) are allowed to conflict
+            assert((((ProcLoopIteration*)iter)->getStage() == 4) ||
+                    (((ProcLoopIteration*)iter)->getStage() == 4));
             no_outstanding = false;
         }
         procAddressCallbacks[addr].push_back((ProcLoopIteration*)iter);

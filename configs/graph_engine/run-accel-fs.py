@@ -97,6 +97,7 @@ system.graph_engine = GraphEngine(pio_addr = 0xFFFF8000,
 # Hook up the accelerator
 system.graph_engine.memory_port = system.membus.slave
 system.graph_engine.pio = system.membus.master
+system.cpu[0].mmucache.mmubus.slave = system.graph_engine.tlb.walker.port
 
 # For workitems to work correctly
 # This will cause the simulator to exit simulation when the first work
@@ -148,9 +149,12 @@ while exit_event.getCause() != "m5_exit instruction encountered":
             break
 
     if exit_event.getCause() == "checkpoint":
+        system.mem_mode = 'timing'
         system.switchCpus(system.cpu, system.atomicCpu)
-    elif exit_event.getCause() == "work started count reach":
-#        system.switchCpus(system.cpu, system.atomicCpu)
+    if exit_event.getCause() == "work started count reach":
+        m5.memWriteback(system)
+        m5.memInvalidate(system)
+#        system.switchCpus(system.cpu, system.timingCpu)
         start_tick = m5.curTick()
         foundROI = True
     elif exit_event.getCause() == "work items exit count reached":

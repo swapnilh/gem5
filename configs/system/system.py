@@ -128,7 +128,7 @@ class MySystem(LinuxX86System):
                         for i in range(self._opts.cpus)]
             self.mem_mode = 'atomic_noncaching'
 
-            self.atomicCpu = [AtomicSimpleCPU(cpu_id = i,
+            self.atomicCpu = [TimingSimpleCPU(cpu_id = i,
                                               switched_out = True)
                               for i in range(self._opts.cpus)]
 
