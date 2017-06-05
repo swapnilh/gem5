@@ -149,12 +149,11 @@ while exit_event.getCause() != "m5_exit instruction encountered":
             break
 
     if exit_event.getCause() == "checkpoint":
-        system.mem_mode = 'timing'
-        system.switchCpus(system.cpu, system.atomicCpu)
     if exit_event.getCause() == "work started count reach":
+        system.mem_mode = 'timing'
         m5.memWriteback(system)
         m5.memInvalidate(system)
-#        system.switchCpus(system.cpu, system.timingCpu)
+        system.switchCpus(system.cpu, system.atomicCpu)
         start_tick = m5.curTick()
         foundROI = True
     elif exit_event.getCause() == "work items exit count reached":

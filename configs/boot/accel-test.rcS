@@ -4,7 +4,8 @@ cd /home/swapnil/graph_engine/
 make clean
 make
 /sbin/m5 checkpoint
-./graph-app-accel-fs graph_test.mtx sssp 10 1 1
+./graph-app-accel-fs test-s10.mtx sssp 1 1 1
+#./graph-app-accel-fs graph_test.mtx sssp 10 1 1
 sync
 sleep 40
 # stty raw
