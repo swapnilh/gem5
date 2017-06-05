@@ -30,6 +30,8 @@
 #ifndef __ACCEL_GRAPH_APPLICATION_HH__
 #define __ACCEL_GRAPH_APPLICATION_HH__
 
+#include <unistd.h>
+
 #include <cassert>
 #include <cstdio>
 #include <fstream>

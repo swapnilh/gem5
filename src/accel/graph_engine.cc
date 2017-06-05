@@ -85,8 +85,16 @@ GraphEngine::read(PacketPtr pkt)
     DPRINTF(Accel, "Got a read request %s", pkt->print());
     DPRINTF(Accel, "Data %#x\n", pkt->get<uint64_t>());
 
-    pkt->set(12);
-    pkt->makeAtomicResponse();
+    if (status == Returning) {
+        pkt->set(12);
+        // TODO FIXME - not atomic, add latency
+        pkt->makeAtomicResponse();
+    }
+    else {
+        pkt->set(10);
+        // TODO FIXME - not atomic, add latency
+        pkt->makeAtomicResponse();
+    }
     return 1;
 }
 
@@ -99,16 +107,14 @@ GraphEngine::write(PacketPtr pkt)
     DPRINTF(Accel, "Got a write request %s", pkt->print());
     DPRINTF(Accel, "Data %#x\n", pkt->get<uint64_t>());
 
-    if (monitorAddr == 0) {
-        monitorAddr = pkt->get<uint64_t>();
-        taskId = pkt->req->taskId();
-    } else if (paramsAddr == 0) {
+    if (paramsAddr == 0) {
         paramsAddr = pkt->get<uint64_t>();
+        taskId = pkt->req->taskId();
     } else {
         panic("Too many writes to GraphEngine!");
     }
 
-    if (monitorAddr != 0 && paramsAddr !=0) {
+    if (paramsAddr !=0) {
         status = Initialized;
         //TODO what is the best place for this
         // HACK - only works for single-thread execution
@@ -646,10 +652,10 @@ GraphEngine::sendFinish()
 
     DPRINTF(Accel, "Sending finish GraphEngine\n");
 
-    uint8_t *data = new uint8_t[4];
+/*    uint8_t *data = new uint8_t[4];
     *(int*)data = 12;
 
-    accessMemory(monitorAddr, 4, BaseTLB::Write, data);
+    accessMemory(monitorAddr, 4, BaseTLB::Write, data);*/
 }
 
 void

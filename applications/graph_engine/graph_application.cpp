@@ -163,18 +163,17 @@ GraphApplication::exec_on_accel(uint64_t *device_addr)
         VTempPropertyTable, VConstPropertyTable,
         ActiveVertexTable, ActiveVertexCount,
         VertexCount, maxIterations};
-    volatile int watch = 0;
-    volatile int* watch_addr = &watch;
     volatile GraphParams* params_addr = &params;
     asm volatile (
-            "mov %0, (%2)\n"
-            "\tmov %1, (%2)\n"
+            "mov %0, (%1)\n"
             :
-            : "r"(watch_addr), "r"(params_addr), "r"(device_addr)
+            : "r"(params_addr), "r"(device_addr)
             :
             );
     printf("Entering spin loop\n");
-    while (watch != 12); // spin
+    while (*device_addr != 12) {
+        usleep(1);
+    }; // spin
 }
 
 void
