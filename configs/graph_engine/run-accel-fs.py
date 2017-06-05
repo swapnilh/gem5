@@ -148,7 +148,6 @@ while exit_event.getCause() != "m5_exit instruction encountered":
         else:
             break
 
-    if exit_event.getCause() == "checkpoint":
     if exit_event.getCause() == "work started count reach":
         system.mem_mode = 'timing'
         m5.memWriteback(system)
