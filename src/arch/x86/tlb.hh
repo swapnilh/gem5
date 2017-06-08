@@ -100,6 +100,8 @@ namespace X86ISA
         TlbEntryTrie trie;
         uint64_t lruSeq;
 
+        bool forAccel;
+
         Fault translateInt(RequestPtr req, ThreadContext *tc);
 
         Fault translate(RequestPtr req, ThreadContext *tc,

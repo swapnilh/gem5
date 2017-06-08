@@ -40,7 +40,7 @@ class GraphEngine(BasicPioDevice):
     algorithm = Param.GraphAlgorithm('BFS', "Graph Algorithm configured")
     max_unroll = Param.Int(8, "Max number of concurrent iterations of loop")
 
-    tlb = Param.X86TLB(X86TLB(), "TLB/MMU to walk page table")
+    tlb = Param.X86TLB(X86TLB(forAccel=True), "TLB/MMU to walk page table")
 
 class GraphEngineDriver(EmulatedDriver):
     type = 'GraphEngineDriver'

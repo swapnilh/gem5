@@ -55,5 +55,6 @@ class X86TLB(BaseTLB):
     cxx_class = 'X86ISA::TLB'
     cxx_header = 'arch/x86/tlb.hh'
     size = Param.Unsigned(64, "TLB size")
+    forAccel = Param.Bool(False, "Is TLB meant for an accelerator")
     walker = Param.X86PagetableWalker(\
             X86PagetableWalker(), "page table walker")

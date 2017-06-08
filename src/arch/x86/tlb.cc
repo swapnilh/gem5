@@ -61,7 +61,7 @@ namespace X86ISA {
 
 TLB::TLB(const Params *p)
     : BaseTLB(p), configAddress(0), size(p->size),
-      tlb(size), lruSeq(0)
+      tlb(size), lruSeq(0), forAccel(p->forAccel)
 {
     if (!size)
         fatal("TLBs must have a non-zero size.\n");
@@ -72,6 +72,7 @@ TLB::TLB(const Params *p)
     }
 
     walker = p->walker;
+    walker->setForAccel(forAccel);
     walker->setTLB(this);
 }
 
@@ -339,6 +340,10 @@ TLB::translate(RequestPtr req, ThreadContext *tc, Translation *translation,
                             vaddr, tc->instAddr());
                     Fault fault = walker->start(tc, translation, req, mode);
                     if (timing || fault != NoFault) {
+                        DPRINTF(TLB, "Got ignored in atomic mode.\n");
+                        if (fault != NoFault) {
+                            DPRINTF(TLB, "Had a Fault:%s\n", fault->name());
+                        }
                         // This gets ignored in atomic mode.
                         delayedResponse = true;
                         return fault;

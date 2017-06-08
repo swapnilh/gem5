@@ -45,6 +45,7 @@
 #include "arch/x86/pagetable.hh"
 #include "arch/x86/tlb.hh"
 #include "base/types.hh"
+#include "debug/PageTableWalker.hh"
 #include "mem/mem_object.hh"
 #include "mem/packet.hh"
 #include "params/X86PagetableWalker.hh"
@@ -169,6 +170,10 @@ namespace X86ISA
         System * sys;
         MasterID masterId;
 
+        // Needed for accelerators
+        bool forAccel;
+        CR3 cr3;
+
         // The number of outstanding walks that can be squashed per cycle.
         unsigned numSquashable;
 
@@ -192,6 +197,11 @@ namespace X86ISA
             tlb = _tlb;
         }
 
+        void setForAccel(bool _forAccel)
+        {
+            forAccel = _forAccel;
+        }
+
         typedef X86PagetableWalkerParams Params;
 
         const Params *
@@ -203,8 +213,8 @@ namespace X86ISA
         Walker(const Params *params) :
             MemObject(params), port(name() + ".port", this),
             funcState(this, NULL, NULL, true), tlb(NULL), sys(params->system),
-            masterId(sys->getMasterId(name())),
-            numSquashable(params->num_squash_per_cycle),
+            masterId(sys->getMasterId(name())), forAccel(false),
+            cr3(0), numSquashable(params->num_squash_per_cycle),
             startWalkWrapperEvent(this)
         {
         }

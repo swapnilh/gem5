@@ -546,7 +546,19 @@ void
 Walker::WalkerState::setupWalk(Addr vaddr)
 {
     VAddr addr = vaddr;
-    CR3 cr3 = tc->readMiscRegNoEffect(MISCREG_CR3);
+
+    // Save cr3 at the start if used for accelerator, in case host process
+    // gets descheduled
+    CR3 cr3;
+    if (!walker->forAccel) {
+        cr3 = tc->readMiscRegNoEffect(MISCREG_CR3);
+    }
+    else {
+        if (walker->cr3 == 0) {
+            walker->cr3 = tc->readMiscRegNoEffect(MISCREG_CR3);
+        }
+        cr3 = walker->cr3;
+    }
     // Check if we're in long mode or not
     Efer efer = tc->readMiscRegNoEffect(MISCREG_EFER);
     dataSize = 8;
