@@ -4,6 +4,7 @@
 
 #include "cpu/translation.hh"
 #include "debug/Accel.hh"
+#include "debug/AccelVerbose.hh"
 #include "enums/GraphAlgorithm.hh"
 #include "mem/packet_access.hh"
 
@@ -210,8 +211,8 @@ GraphEngine::executeProcLoop(FuncParams params)
 
     DPRINTF(Accel, "Got all of the params!\n");
     DPRINTF(Accel, "EdgeTable:%#x, EdgeIdTable:%#x, VertexPropertyTable:%x\n",
-                params.EdgeTable, params.EdgeIdTable,
-                params.VertexPropertyTable);
+            params.EdgeTable, params.EdgeIdTable,
+            params.VertexPropertyTable);
     DPRINTF(Accel, "VTempPropertyTable: %#x, VConstPropertyTable: %#x,"
             "ActiveVertexTable: %x\n", params.VTempPropertyTable,
             params.VConstPropertyTable, params.ActiveVertexTable);
@@ -228,8 +229,8 @@ GraphEngine::executeApplyLoop(FuncParams params)
 
     DPRINTF(Accel, "Got all of the params!\n");
     DPRINTF(Accel, "EdgeTable:%#x, EdgeIdTable:%#x, VertexPropertyTable:%x\n",
-                params.EdgeTable, params.EdgeIdTable,
-                params.VertexPropertyTable);
+            params.EdgeTable, params.EdgeIdTable,
+            params.VertexPropertyTable);
     DPRINTF(Accel, "VTempPropertyTable: %#x, VConstPropertyTable: %#x,"
             "ActiveVertexTable: %x\n", params.VTempPropertyTable,
             params.VConstPropertyTable, params.ActiveVertexTable);
@@ -243,20 +244,20 @@ bool
 GraphEngine::acquireLock(Addr addr, ProcLoopIteration *iter)
 {
     auto it = lockedAddresses.find(addr);
-    DPRINTF(Accel, "Acquiring lock on addr %#x\n", addr);
+    DPRINTF(AccelVerbose, "Acquiring lock on addr %#x\n", addr);
     if (it == lockedAddresses.end()) {
         lockedAddresses[addr].push_back(iter);
-        DPRINTF(Accel, "Acquired lock on addr %#x\n", addr);
+        DPRINTF(AccelVerbose, "Acquired lock on addr %#x\n", addr);
         return true;
     }
     else {
         if (iter == it->second.front()) {
-            DPRINTF(Accel, "Picked from waiting list for addr %#x\n", addr);
+            DPRINTF(AccelVerbose, "Picked from waiting list addr %#x\n", addr);
             // Oldest waiter, so can proceed
             return true;
         }
         else {
-            DPRINTF(Accel, "Added to waiting list for addr %#x\n", addr);
+            DPRINTF(AccelVerbose, "Added to waiting list addr %#x\n", addr);
             it->second.push_back(iter);
             return false;
         }
@@ -267,7 +268,7 @@ void
 GraphEngine::releaseLock(Addr addr)
 {
     auto it = lockedAddresses.find(addr);
-    DPRINTF(Accel, "Releasing lock on addr %#x\n", addr);
+    DPRINTF(AccelVerbose, "Releasing lock on addr %#x\n", addr);
     assert (it != lockedAddresses.end());
 
     // Clear the first waiter
@@ -297,7 +298,7 @@ GraphEngine::ProcLoopIteration::ProcLoopIteration(int step, FuncParams params,
     else {
         DPRINTFS(Accel, accel, "Initializing Proc loop iterations\n");
         for (int i=1; i<=step && i<=params.ActiveVertexCount; i++) {
-            DPRINTFS(Accel, accel, "Processing::New iteration for %d\n", i);
+            DPRINTFS(AccelVerbose, accel, "Processing::New iteration:%d\n", i);
             new ProcLoopIteration(i, step, params, accel);
         }
     }
@@ -308,20 +309,20 @@ GraphEngine::ProcLoopIteration::finishIteration()
 {
     accel->procFinished++;
     DPRINTFS(Accel, accel, "Proccessing::Finished %d/%d\n",
-            accel->procFinished, params.ActiveVertexCount);
+             accel->procFinished, params.ActiveVertexCount);
 
     /* Start next iteration of Process Phase */
     if (i+step <= params.ActiveVertexCount) {
         DPRINTFS(Accel, accel, "Processing::New iteration for %d\n",
-                i+step);
+                 i+step);
              new ProcLoopIteration(i+step, step, params, accel);
     } else {
         DPRINTFS(Accel, accel, "Processing finished for stream %d\n",
-                (i%step)+1);
+                 (i%step)+1);
         if (accel->procFinished == params.ActiveVertexCount) {
             accel->procFinished=0;
             DPRINTFS(Accel, accel, "Finished Processing Phase [%d/%d]!\n",
-                    accel->completedIterations+1, params.maxIterations);
+                     accel->completedIterations+1, params.maxIterations);
             DPRINTFS(Accel, accel, "Starting Apply Phase!\n");
             accel->executeApplyLoop(params);
         }
@@ -391,9 +392,9 @@ GraphEngine::ProcLoopIteration::stage5()
 {
     resProp = accel->algorithm->processEdge(edge.weight, src.property,
                                             destProp);
-    DPRINTFS(Accel, accel, "src:%" PRIu64 " dest:%" PRIu64 " edgeweight:%"
-            PRIu32 " resProp:%" PRIu64 "\n", src.id, edge.destId, tempProp,
-            resProp);
+    DPRINTFS(AccelVerbose, accel, "src:%" PRIu64 " dest:%" PRIu64
+             " edgeweight:%" PRIu32 " resProp:%" PRIu64 "\n", src.id,
+             edge.destId, tempProp, resProp);
     // Load tempProp = VTempPropertyTable[edge.destId]
     // VertexProperty is 64 bits
     uint8_t *tempProp = new uint8_t[8];
@@ -413,11 +414,10 @@ GraphEngine::ProcLoopIteration::stage5()
 void
 GraphEngine::ProcLoopIteration::stage6()
 {
-    DPRINTFS(Accel, accel, "src:%d dest:%d tempProp:%" PRIu64 " resProp:%"
-            PRIu64 "\n", src.id, edge.destId, tempProp,
-            resProp);
+    DPRINTFS(AccelVerbose, accel, "src:%d dest:%d tempProp:%" PRIu64
+             " resProp:%" PRIu64 "\n", src.id, edge.destId, tempProp, resProp);
     tempProp = accel->algorithm->reduce(tempProp, resProp);
-    DPRINTFS(Accel, accel, " reduced to %" PRIu64 "\n", tempProp);
+    DPRINTFS(AccelVerbose, accel, " reduced to %" PRIu64 "\n", tempProp);
     uint8_t *tempWrite = new uint8_t[8];
     *(VertexProperty*)tempWrite = tempProp;
     stage = 6;
@@ -500,7 +500,7 @@ GraphEngine::ApplyLoopIteration::ApplyLoopIteration(int step, FuncParams
     else {
         DPRINTFS(Accel, accel, "Initializing apply loop iterations\n");
         for (int i=1; i<=step && i<=params.VertexCount; i++) {
-            DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i);
+            DPRINTFS(AccelVerbose, accel, "Apply::New iteration for %d\n", i);
             new ApplyLoopIteration(i, step, params, accel);
         }
     }
@@ -549,8 +549,8 @@ GraphEngine::ApplyLoopIteration::stage11()
     stage = 11;
     if (tempProp != vProp) {
         // Store VertexPropertyTable[i] = tempProp
-        DPRINTFS(Accel, accel, "Vertex:%d Updating vProp:%d tempProp:%d\n",
-                i, vProp, tempProp);
+        DPRINTFS(AccelVerbose, accel, "Vertex:%d Updating vProp:%d"
+                 "tempProp:%d\n", i, vProp, tempProp);
         uint8_t *tempWrite = new uint8_t[8];
         *(VertexProperty*)tempWrite = tempProp;
         assert(params.VertexPropertyTable+8*i >= params.VertexPropertyTable);
@@ -570,8 +570,8 @@ GraphEngine::ApplyLoopIteration::stage12()
     stage = 12;
     // Store ActiveVertex[UpdatedActiveVertexCount++] = v
     accel->UpdatedActiveVertexCount++;
-    DPRINTFS(Accel, accel, "Adding %d to Active list, ActiveVertexCount:%d\n",
-        i, accel->UpdatedActiveVertexCount);
+    DPRINTFS(AccelVerbose, accel, "Adding %d to Active list,"
+             " ActiveVertexCount:%d\n", i, accel->UpdatedActiveVertexCount);
     uint8_t *tempWrite = new uint8_t[16];
     *(Vertex*)tempWrite = v;
     assert(params.ActiveVertexTable+16*accel->UpdatedActiveVertexCount >=
@@ -586,19 +586,19 @@ GraphEngine::ApplyLoopIteration::stage13()
 {
     accel->applyFinished++;
     DPRINTFS(Accel, accel, "Apply::Finished %d/%d\n",
-            accel->applyFinished, params.VertexCount);
+             accel->applyFinished, params.VertexCount);
     if (i+step <= params.VertexCount) {
         DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i+step);
         new ApplyLoopIteration(i+step, step, params, accel);
     } else {
         DPRINTFS(Accel, accel, "Apply finished for stream %d\n",
-                (i%step)+1);
+                 (i%step)+1);
         if (accel->applyFinished == params.VertexCount) {
             accel->applyFinished = 0;
             accel->completedIterations++;
             accel->algorithm->incrementIterationCount();
             DPRINTFS(Accel, accel, "Finished Apply Phase [%d/%d]!\n",
-                        accel->completedIterations, params.maxIterations);
+                     accel->completedIterations, params.maxIterations);
             if (accel->completedIterations == params.maxIterations) {
                 // All iterations complete, inform the host
                 DPRINTFS(Accel, accel, "Finished all iterations!\n");
@@ -608,7 +608,7 @@ GraphEngine::ApplyLoopIteration::stage13()
             else {
                 // Begin next phase of processing with updated params
                 DPRINTFS(Accel, accel, "Starting iteration %d!\n",
-                            accel->completedIterations+1);
+                         accel->completedIterations+1);
                 params.ActiveVertexCount = accel->UpdatedActiveVertexCount;
                 accel->UpdatedActiveVertexCount = 0;
                 accel->executeProcLoop(params);
@@ -679,7 +679,7 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
             req->setFlags(Request::UNCACHEABLE);
     }
 
-    DPRINTF(Accel, "Translating for addr %#x\n", req->getVaddr());
+    DPRINTF(AccelVerbose, "Translating for addr %#x\n", req->getVaddr());
 
     Addr split_addr = roundDown(addr + size - 1, block_size);
     assert(split_addr <= addr || split_addr - addr < block_size);
@@ -713,7 +713,7 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
                 state->mainReq->getVaddr());
     }
 
-    DPRINTF(Accel, "Got response for translation. %#x -> %#x\n",
+    DPRINTF(AccelVerbose, "Got response for translation. %#x -> %#x\n",
             state->mainReq->getVaddr(), state->mainReq->getPaddr());
 
     if (!state->isSplit) {
@@ -731,7 +731,7 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
 void
 GraphEngine::sendData(RequestPtr req, uint8_t *data, bool read)
 {
-    DPRINTF(Accel, "Sending request for addr %#x\n", req->getPaddr());
+    DPRINTF(AccelVerbose, "Sending request for addr %#x\n", req->getPaddr());
 
     PacketPtr pkt = read ? Packet::createRead(req) : Packet::createWrite(req);
     pkt->dataDynamic<uint8_t>(data);
@@ -743,7 +743,8 @@ void
 GraphEngine::sendSplitData(RequestPtr req1, RequestPtr req2,
                                RequestPtr req, uint8_t *data, bool read)
 {
-    DPRINTF(Accel, "Sending split request for addr %#x\n", req->getPaddr());
+    DPRINTF(AccelVerbose, "Sending split request for addr %#x\n",
+            req->getPaddr());
 
     PacketPtr pkt1 = read ? Packet::createRead(req1):Packet::createWrite(req1);
     PacketPtr pkt2 = read ? Packet::createRead(req2):Packet::createWrite(req2);
@@ -781,20 +782,20 @@ GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
     auto it_apply = applyAddressCallbacks.find(addr);
     switch (status) {
     case ExecutingProcessingLoop:
-        DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
-               ((ProcLoopIteration*)iter)->name());
+        DPRINTF(AccelVerbose, "Address :%#x set by iter:%s\n", addr,
+                ((ProcLoopIteration*)iter)->name());
         if (it_proc != procAddressCallbacks.end()) {
             // Only dest property reads or edge reads (when one extra
             // final edge is read) are allowed to conflict
-            assert((((ProcLoopIteration*)iter)->getStage() == 4) ||
+            assert((((ProcLoopIteration*)iter)->getStage() == 3) ||
                     (((ProcLoopIteration*)iter)->getStage() == 4));
             no_outstanding = false;
         }
         procAddressCallbacks[addr].push_back((ProcLoopIteration*)iter);
         break;
     case ExecutingApplyLoop:
-        DPRINTF(Accel, "Address :%#x set by iter:%s\n", addr,
-               ((ApplyLoopIteration*)iter)->name());
+        DPRINTF(AccelVerbose, "Address :%#x set by iter:%s\n", addr,
+                ((ApplyLoopIteration*)iter)->name());
         assert(it_apply == applyAddressCallbacks.end());
         applyAddressCallbacks[addr].push_back((ApplyLoopIteration*)iter);
         break;
@@ -815,8 +816,8 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
     std::vector<ProcLoopIteration*> waiters = it->second;
     for ( auto waiter = waiters.begin(); waiter != waiters.end(); ++waiter) {
         ((ProcLoopIteration*)*waiter)->recvResponse(pkt);
-        DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
-                ((ProcLoopIteration*)*waiter)->name());
+        DPRINTF(AccelVerbose, "Address :%#x unset by iter:%s\n",
+                pkt->req->getVaddr(), ((ProcLoopIteration*)*waiter)->name());
     }
     procAddressCallbacks.erase(it);
 }
@@ -830,8 +831,8 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
     }
 
     ApplyLoopIteration *iter = it->second.back();
-    DPRINTF(Accel, "Address :%#x unset by iter:%s\n", pkt->req->getVaddr(),
-            ((ApplyLoopIteration*)iter)->name());
+    DPRINTF(AccelVerbose, "Address :%#x unset by iter:%s\n",
+            pkt->req->getVaddr(), ((ApplyLoopIteration*)iter)->name());
     iter->recvResponse(pkt);
     it->second.pop_back();
     //Should have had only one outstanding request
@@ -842,7 +843,7 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
 bool
 GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
 {
-    DPRINTF(Accel, "Got a response for addr %#x\n", pkt->req->getVaddr());
+    DPRINTF(AccelVerbose, "Got response for addr %#x\n", pkt->req->getVaddr());
 
     GraphEngine& graphEngine = dynamic_cast<GraphEngine&>(owner);
 
