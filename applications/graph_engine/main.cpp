@@ -25,11 +25,11 @@ int main(int argc, char *argv[])
     GraphApplication *app;
     int maxIterations = atoi(argv[3]);
 
-    if (!strcmp(workload, "sssp")) {
+    if (!strcmp(workload, "SSSP")) {
         app = new SSSP(maxIterations);
-    } else if (!strcmp(workload, "bfs")) {
+    } else if (!strcmp(workload, "BFS")) {
         app = new BFS(maxIterations);
-    } else if (!strcmp(workload, "pagerank")) {
+    } else if (!strcmp(workload, "PageRank")) {
         app = new PageRank(maxIterations);
     } else {
         std::cout << "Error! " << workload << " not available.\n";
