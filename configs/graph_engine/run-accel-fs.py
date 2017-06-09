@@ -72,6 +72,9 @@ SimpleOpts.add_option("--algorithm", type='string',
                       "graph accelerator. Default: %s" %
                       (GraphEngine.algorithm))
 
+SimpleOpts.add_option("--tlb_size", type='int',
+                      default=16, help ="accelerator TLB size. Default: 16")
+
 # Set the usage message to display
 SimpleOpts.set_usage("usage: %prog [options]")
 
@@ -86,9 +89,10 @@ if len(args) != 0:
 system = MySystem(opts)
 
 # Create the graph accelerator
+accel_tlb = X86TLB(forAccel=True, size=opts.tlb_size)
 system.graph_engine = GraphEngine(pio_addr = 0xFFFF8000,
                                 max_unroll=opts.max_unroll,
-                                algorithm=opts.algorithm)
+                                algorithm=opts.algorithm, tlb=accel_tlb)
 
 # TO-DO, this shouldn't be needed?
 #system.graph_engine_driver = GraphEngineDriver(hardware=system.graph_engine,

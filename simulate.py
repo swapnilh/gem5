@@ -43,6 +43,7 @@ def main(argv):
                         default='logs-'+time.strftime("%d-%b"))
     parser.add_argument('-i', action="store", dest='iterations', default=10)
     parser.add_argument('-u', action="store", dest='max_unroll', default=8)
+    parser.add_argument('-t', action="store", dest='tlb_size', default=8)
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
@@ -55,6 +56,7 @@ def main(argv):
     print "Output Dir: " +  OUT_DIR + results.out_dir
     print "Iterations: " + str(results.iterations)
     print "Unrolled streams: " + str(results.max_unroll)
+    print "Accel TLB size: " + str(results.tlb_size)
     print "Debug flags: " + results.debug_flags
     print "Debug Start: " + str(results.debug_start)
 
@@ -96,12 +98,14 @@ def main(argv):
             debug_str = ''
             if results.debug_flags != '':
                 debug_str = ' --debug-flags=' + results.debug_flags +\
-                    ' --debug-start=' + str(results.debug_start)
+                    ' --debug-start=' + str(results.debug_start)\
+                    + ' --debug-file=accel.log'
 
             # Create the gem5 run command
             run_cmd = './build/X86/gem5.opt ' + debug_str + ' -d '\
                 + logs_dir + ' ' + GEM5_SCRIPT\
                 + ' --max_unroll=' + str(results.max_unroll)\
+                + ' --tlb_size=' + str(results.tlb_size)\
                 + ' --algorithm=' + workload\
                 + ' --script=configs/boot/accel.rcS\n'
             f = open(os.path.join(logs_dir, 'runscript'), 'w')
