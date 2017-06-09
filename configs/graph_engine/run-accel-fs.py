@@ -154,9 +154,11 @@ while exit_event.getCause() != "m5_exit instruction encountered":
         m5.memInvalidate(system)
         system.switchCpus(system.cpu, system.atomicCpu)
         start_tick = m5.curTick()
+        m5.stats.reset()
         foundROI = True
     elif exit_event.getCause() == "work items exit count reached":
         end_tick = m5.curTick()
+        break
 
     print "Continuing after", exit_event.getCause()
     exit_event = m5.simulate()
