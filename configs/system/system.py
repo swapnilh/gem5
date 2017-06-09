@@ -59,12 +59,12 @@ class MySystem(LinuxX86System):
         self.clk_domain.clock = '3GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
 
-        mem_size = '8GB'
+        mem_size = '16GB'
         self.mem_ranges = [AddrRange('100MB'), # For kernel
                            AddrRange(0xC0000000, size=0x100000), # For I/0
                            AddrRange(Addr('4GB'), size = mem_size) # All data
                            ]
-
+        self.mmap_using_noreserve = True
         # Create the main memory bus
         # This connects to main memory
         self.membus = SystemXBar(width = 64) # 64-byte width
@@ -80,7 +80,7 @@ class MySystem(LinuxX86System):
         # The first disk is the root disk. The second could be used for swap
         # or anything else.
         filepath = '' # Todo: Move to backed up location
-        imagepath = filepath + 'ubuntu-16.04.img'
+        imagepath = filepath + 'ubuntu-16.04-large.img'
 
         self.setDiskImages(imagepath, opts.second_disk)
 
