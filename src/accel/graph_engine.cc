@@ -44,6 +44,8 @@ GraphEngine::GraphEngine(const Params *p) :
             panic("Graph Algorithm unimplemented");
     }
 
+    memAccessStartTick.resize(maxUnroll+1);
+    addrTransStartTick.resize(maxUnroll+1);
 }
 
 BaseMasterPort &
@@ -111,6 +113,7 @@ GraphEngine::write(PacketPtr pkt)
     if (paramsAddr == 0) {
         paramsAddr = pkt->get<uint64_t>();
         taskId = pkt->req->taskId();
+        startTick = curTick();
     } else {
         panic("Too many writes to GraphEngine!");
     }
@@ -145,31 +148,31 @@ GraphEngine::loadParams()
     paramsLoaded = 0;
 
     uint8_t *EdgeTable = new uint8_t[8];
-    accessMemory(paramsAddr, 8, BaseTLB::Read, EdgeTable);
+    accessMemory(paramsAddr, 8, BaseTLB::Read, EdgeTable, 0);
 
     uint8_t *EdgeIdTable = new uint8_t[8];
-    accessMemory(paramsAddr+8, 8, BaseTLB::Read, EdgeIdTable);
+    accessMemory(paramsAddr+8, 8, BaseTLB::Read, EdgeIdTable, 0);
 
     uint8_t *VertexPropertyTable = new uint8_t[8];
-    accessMemory(paramsAddr+16, 8, BaseTLB::Read, VertexPropertyTable);
+    accessMemory(paramsAddr+16, 8, BaseTLB::Read, VertexPropertyTable, 0);
 
     uint8_t *VTempPropertyTable = new uint8_t[8];
-    accessMemory(paramsAddr+24, 8, BaseTLB::Read, VTempPropertyTable);
+    accessMemory(paramsAddr+24, 8, BaseTLB::Read, VTempPropertyTable, 0);
 
     uint8_t *VConstPropertyTable = new uint8_t[8];
-    accessMemory(paramsAddr+32, 8, BaseTLB::Read, VConstPropertyTable);
+    accessMemory(paramsAddr+32, 8, BaseTLB::Read, VConstPropertyTable, 0);
 
     uint8_t *ActiveVertexTable = new uint8_t[8];
-    accessMemory(paramsAddr+40, 8, BaseTLB::Read, ActiveVertexTable);
+    accessMemory(paramsAddr+40, 8, BaseTLB::Read, ActiveVertexTable, 0);
 
     uint8_t *ActiveVertexCount = new uint8_t[8];
-    accessMemory(paramsAddr+48, 8, BaseTLB::Read, ActiveVertexCount);
+    accessMemory(paramsAddr+48, 8, BaseTLB::Read, ActiveVertexCount, 0);
 
     uint8_t *VertexCount = new uint8_t[8];
-    accessMemory(paramsAddr+56, 8, BaseTLB::Read, VertexCount);
+    accessMemory(paramsAddr+56, 8, BaseTLB::Read, VertexCount, 0);
 
     uint8_t *maxIterations = new uint8_t[4];
-    accessMemory(paramsAddr+64, 4, BaseTLB::Read, maxIterations);
+    accessMemory(paramsAddr+64, 4, BaseTLB::Read, maxIterations, 0);
 }
 
 void
@@ -296,6 +299,7 @@ GraphEngine::ProcLoopIteration::ProcLoopIteration(int step, FuncParams params,
 //        delete this;
     }
     else {
+        accel->processPhaseStartTick = curTick();
         DPRINTFS(Accel, accel, "Initializing Proc loop iterations\n");
         for (int i=1; i<=step && i<=params.ActiveVertexCount; i++) {
             DPRINTFS(AccelVerbose, accel, "Processing::New iteration:%d\n", i);
@@ -319,6 +323,9 @@ GraphEngine::ProcLoopIteration::finishIteration()
     } else {
         DPRINTFS(Accel, accel, "Processing finished for stream %d\n",
                  (i%step)+1);
+        accel->cyclesActive[i%step+1] += curTick() -
+                                         accel->processPhaseStartTick;
+
         if (accel->procFinished == params.ActiveVertexCount) {
             accel->procFinished=0;
             DPRINTFS(Accel, accel, "Finished Processing Phase [%d/%d]!\n",
@@ -498,6 +505,7 @@ GraphEngine::ApplyLoopIteration::ApplyLoopIteration(int step, FuncParams
 //        delete this;
     }
     else {
+        accel->applyPhaseStartTick = curTick();
         DPRINTFS(Accel, accel, "Initializing apply loop iterations\n");
         for (int i=1; i<=step && i<=params.VertexCount; i++) {
             DPRINTFS(AccelVerbose, accel, "Apply::New iteration for %d\n", i);
@@ -593,6 +601,10 @@ GraphEngine::ApplyLoopIteration::stage13()
     } else {
         DPRINTFS(Accel, accel, "Apply finished for stream %d\n",
                  (i%step)+1);
+
+        accel->cyclesActive[i%step+1] += curTick() -
+                                         accel->applyPhaseStartTick;
+
         if (accel->applyFinished == params.VertexCount) {
             accel->applyFinished = 0;
             accel->completedIterations++;
@@ -652,6 +664,8 @@ GraphEngine::sendFinish()
 
     DPRINTF(Accel, "Sending finish GraphEngine\n");
 
+    cyclesActive[0] = curTick() - startTick;
+    startTick = 0;
 /*    uint8_t *data = new uint8_t[4];
     *(int*)data = 12;
 
@@ -664,22 +678,25 @@ GraphEngine::accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
 {
     // True if no other outstanding request to address
     if (setAddressCallback(addr, iter))
-        accessMemory(addr, size, mode, data);
+        accessMemory(addr, size, mode, data, ((iter->i)%maxUnroll)+1);
 }
 
 void
 GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
-                        *data)
+                        *data, ContextID id)
 {
     unsigned block_size = 64; //TODO figure out better version?
 
     RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+    req->setContext(id);
     req->taskId(taskId);
     if (mode == BaseTLB::Write) {
             req->setFlags(Request::UNCACHEABLE);
     }
 
     DPRINTF(AccelVerbose, "Translating for addr %#x\n", req->getVaddr());
+
+    addrTransStartTick[id] = curTick();
 
     Addr split_addr = roundDown(addr + size - 1, block_size);
     assert(split_addr <= addr || split_addr - addr < block_size);
@@ -715,6 +732,10 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
 
     DPRINTF(AccelVerbose, "Got response for translation. %#x -> %#x\n",
             state->mainReq->getVaddr(), state->mainReq->getPaddr());
+
+    ContextID id = state->mainReq->contextId();
+    cyclesAddressTranslation[id] += curTick() - addrTransStartTick[id];
+    memAccessStartTick[id] = curTick();
 
     if (!state->isSplit) {
         sendData(state->mainReq, state->data, state->mode == BaseTLB::Read);
@@ -873,6 +894,10 @@ GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
         }
     }
 
+    ContextID id = pkt->req->contextId();
+    graphEngine.cyclesMemoryAccess[id] += curTick() -
+        graphEngine.memAccessStartTick[id];
+
     if (graphEngine.status == GettingParams) {
         graphEngine.recvParam(pkt);
     } else if (graphEngine.status == ExecutingProcessingLoop) {
@@ -889,6 +914,34 @@ GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
     delete pkt;
 
     return true;
+}
+
+void
+GraphEngine::regStats()
+{
+    using namespace Stats;
+
+    BasicPioDevice::regStats();
+/*
+    cyclesEnabled
+        .name(name() + ".cyclesEnabled")
+        .desc("Cycles when Accelerator is enabled");
+*/
+    cyclesActive
+        .init(maxUnroll+1)
+        .name(name() + ".cyclesActive")
+        .desc("Active cycles per Accelerator stream");
+
+    cyclesMemoryAccess
+        .init(maxUnroll+1)
+        .name(name() + ".cyclesMemoryAccess")
+        .desc("Busy cycles for memory access per Accelerator stream");
+
+    cyclesAddressTranslation
+        .init(maxUnroll+1)
+        .name(name() + ".cyclesAddressTranslation")
+        .desc("Busy cycles for address translation per Accelerator stream");
+
 }
 
 GraphEngine*

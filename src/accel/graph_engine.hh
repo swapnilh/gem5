@@ -37,6 +37,7 @@
 #include "accel/graph.hh"
 #include "accel/graph_accel.hh"
 #include "arch/tlb.hh"
+#include "base/statistics.hh"
 #include "cpu/thread_context.hh"
 #include "cpu/translation.hh"
 #include "dev/io_device.hh"
@@ -262,9 +263,25 @@ class GraphEngine : public BasicPioDevice
      * needed by the cache blocks */
     uint32_t taskId;
 
+    /* All statistics needed by the accelerator model */
+    /* For all stats, element 0 is for the accel, others are for streams */
+    //Stats::Scalar cyclesEnabled;
+    Stats::Vector cyclesActive;
+    Stats::Vector cyclesMemoryAccess;
+    Stats::Vector cyclesAddressTranslation;
+
+    /* Helper variables for statistics */
+    Tick startTick;
+    Tick processPhaseStartTick;
+    Tick applyPhaseStartTick;
+    std::vector<Tick> memAccessStartTick;
+    std::vector<Tick> addrTransStartTick;
+
   public:
     typedef GraphEngineParams Params;
     GraphEngine(const Params *p);
+
+    void regStats() override;
 
     /**
      *
@@ -360,7 +377,8 @@ class GraphEngine : public BasicPioDevice
 
     EventWrapper<GraphEngine, &GraphEngine::runGraphEngine> runEvent;
 
-    void accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t *data);
+    void accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t *data,
+                        ContextID id);
 
     bool setAddressCallback(Addr addr, LoopIteration* iter);
 
