@@ -1,0 +1,90 @@
+{
+    "BFS": [
+    {   
+        "database" : "graph_test.mtx",
+        "args"     : "1 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "flickr-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "wikipedia-20070206-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "ljournal-2008-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    }
+    ],
+    "SSSP": [
+    {   
+        "database" : "graph_test.mtx",
+        "args"     : "1 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "flickr-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "wikipedia-20070206-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "ljournal-2008-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    }
+    ],
+    "PageRank": [
+    {   
+        "database" : "graph_test.mtx",
+        "args"     : "1 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "flickr-sorted.mtx",
+        "args"     : "0 0 ", 
+        "time"     : ""
+    },
+    {   
+        "database" : "wikipedia-20070206-sorted.mtx",
+        "args"     : "0 0 ", 
+        "time"     : ""
+    },
+    {   
+        "database" : "ljournal-2008-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    }
+    ],
+    "TriangleCounting": [
+    {   
+        "database" : "graph_test.mtx",
+        "args"     : "1 0 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "flickr-sorted.mtx",
+        "args"     : "0 0 ", 
+        "time"     : ""
+    },
+    {   
+        "database" : "wikipedia-20070206-sorted.mtx",
+        "args"     : "0 0 ", 
+        "time"     : ""
+    },
+    {   
+        "database" : "ljournal-2008-sorted.mtx",
+        "args"     : "0 0 ",  
+        "time"     : ""
+    }
+    ]
+}
