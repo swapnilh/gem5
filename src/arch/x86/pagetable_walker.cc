@@ -78,6 +78,7 @@ Walker::start(ThreadContext * _tc, BaseTLB::Translation *_translation,
     if (currStates.size()) {
         assert(newState->isTiming());
         DPRINTF(PageTableWalker, "Walks in progress: %d\n", currStates.size());
+        concurrentWalksPdf[currStates.size()]++;
         currStates.push_back(newState);
         return NoFault;
     } else {
@@ -510,6 +511,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
                 walker->tlb->insert(entry.vaddr, entry);
         endWalk();
     } else {
+        DPRINTF(PageTableWalker, "Next read is %#x\n", nextRead);
         PacketPtr oldRead = read;
         //If we didn't return, we're setting up another read.
         Request::Flags flags = oldRead->req->getFlags();
@@ -594,6 +596,7 @@ Walker::WalkerState::setupWalk(Addr vaddr)
     entry.vaddr = vaddr;
 
     Request::Flags flags = Request::PHYSICAL;
+    DPRINTF(PageTableWalker, "cr3 is %#x\n", cr3);
     if (cr3.pcd)
         flags.set(Request::UNCACHEABLE);
     RequestPtr request = new Request(topAddr, dataSize, flags,
@@ -724,6 +727,19 @@ Walker::WalkerState::pageFault(bool present)
         mode = BaseTLB::Read;
     return std::make_shared<PageFault>(entry.vaddr, present, mode,
                                        m5reg.cpl == 3, false);
+}
+
+void
+Walker::regStats()
+{
+    using namespace Stats;
+
+    MemObject::regStats();
+
+    concurrentWalksPdf
+        .init(16) // TODO FIXME
+        .name(name() + ".concurrentWalksPdf")
+        .desc("How many concurrent walks when a new one starts");
 }
 
 /* end namespace X86ISA */ }

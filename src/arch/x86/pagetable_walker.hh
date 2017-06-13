@@ -170,6 +170,9 @@ namespace X86ISA
         System * sys;
         MasterID masterId;
 
+        // Getting some statistics
+        Stats::Vector concurrentWalksPdf;
+
         // Needed for accelerators
         bool forAccel;
         CR3 cr3;
@@ -191,6 +194,11 @@ namespace X86ISA
         bool sendTiming(WalkerState * sendingState, PacketPtr pkt);
 
       public:
+
+        /*
+         * Function to register Stats
+         */
+        void regStats();
 
         void setTLB(TLB * _tlb)
         {
