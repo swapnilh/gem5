@@ -333,11 +333,23 @@ TLB::translate(RequestPtr req, ThreadContext *tc, Translation *translation,
             DPRINTF(TLB, "Paging enabled.\n");
             // The vaddr already has the segment base applied.
             TlbEntry *entry = lookup(vaddr);
+            if (mode == Read) {
+                rdAccesses++;
+            }
+            else {
+                wrAccesses++;
+            }
             if (!entry) {
                 if (FullSystem) {
                     DPRINTF(TLB, "Handling a TLB miss for "
                             "address %#x at pc %#x.\n",
                             vaddr, tc->instAddr());
+                    if (mode == Read) {
+                        rdMisses++;
+                    }
+                    else {
+                        wrMisses++;
+                    }
                     Fault fault = walker->start(tc, translation, req, mode);
                     if (timing || fault != NoFault) {
                         DPRINTF(TLB, "Got ignored in atomic mode.\n");
@@ -461,6 +473,29 @@ Walker *
 TLB::getWalker()
 {
     return walker;
+}
+
+void
+TLB::regStats()
+{
+    using namespace Stats;
+
+    rdAccesses
+        .name(name() + ".rdAccesses")
+        .desc("TLB accesses on read requests");
+
+    wrAccesses
+        .name(name() + ".wrAccesses")
+        .desc("TLB accesses on write requests");
+
+    rdMisses
+        .name(name() + ".rdMisses")
+        .desc("TLB misses on read requests");
+
+    wrMisses
+        .name(name() + ".wrMisses")
+        .desc("TLB misses on write requests");
+
 }
 
 void

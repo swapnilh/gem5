@@ -102,6 +102,12 @@ namespace X86ISA
 
         bool forAccel;
 
+        // Statistics
+        Stats::Scalar rdAccesses;
+        Stats::Scalar wrAccesses;
+        Stats::Scalar rdMisses;
+        Stats::Scalar wrMisses;
+
         Fault translateInt(RequestPtr req, ThreadContext *tc);
 
         Fault translate(RequestPtr req, ThreadContext *tc,
@@ -143,6 +149,11 @@ namespace X86ISA
                                Mode mode) const;
 
         TlbEntry * insert(Addr vpn, TlbEntry &entry);
+
+        /*
+         * Function to register Stats
+         */
+        void regStats();
 
         // Checkpointing
         void serialize(CheckpointOut &cp) const override;
