@@ -101,7 +101,8 @@ system.graph_engine = GraphEngine(pio_addr = 0xFFFF8000,
 # Hook up the accelerator
 system.graph_engine.memory_port = system.membus.slave
 system.graph_engine.pio = system.membus.master
-system.cpu[0].mmucache.mmubus.slave = system.graph_engine.tlb.walker.port
+#system.cpu[0].mmucache.mmubus.slave = system.graph_engine.tlb.walker.port
+system.graph_engine.tlb.walker.port = system.membus.slave
 
 # For workitems to work correctly
 # This will cause the simulator to exit simulation when the first work
