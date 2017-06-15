@@ -147,8 +147,8 @@ class MySystem(LinuxX86System):
 
     def createCacheHierarchy(self):
         # Create an L3 cache (with crossbar)
-        self.l3bus = L2XBar(width = 64,
-                            snoop_filter = SnoopFilter(max_capacity='32MB'))
+#        self.l3bus = L2XBar(width = 64,
+#                            snoop_filter = SnoopFilter(max_capacity='32MB'))
 
         for cpu in self.cpu:
             # Create a memory bus, a coherent crossbar, in this case
@@ -173,14 +173,14 @@ class MySystem(LinuxX86System):
             cpu.l2cache = L2Cache(self._opts)
             cpu.l2cache.connectCPUSideBus(cpu.l2bus)
 
-            # Connect the L2 cache to the L3 bus
-            cpu.l2cache.connectMemSideBus(self.l3bus)
+            # Connect the L2 cache to the membus
+            cpu.l2cache.connectMemSideBus(self.membus)
 
-        self.l3cache = BankedL3Cache(self._opts)
-        self.l3cache.connectCPUSideBus(self.l3bus)
+#        self.l3cache = BankedL3Cache(self._opts)
+#        self.l3cache.connectCPUSideBus(self.l3bus)
 
         # Connect the L3 cache to the membus
-        self.l3cache.connectMemSideBus(self.membus)
+#        self.l3cache.connectMemSideBus(self.membus)
 
     def setupInterrupts(self):
         for cpu in self.cpu:
