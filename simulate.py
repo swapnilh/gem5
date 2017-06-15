@@ -10,6 +10,7 @@ import shutil
 GEM5_DIR = "/nobackup/swapnilh/gem5-accelerator/"
 OUT_DIR = "/nobackup/swapnilh/gem5-accelerator/logs/"
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
+DONT_RUN = ['graph_test.mtx']
 
 def write_rcs_file(f, workload, database, iterations, args):
     header = '''
@@ -44,70 +45,77 @@ def main(argv):
     parser.add_argument('-i', action="store", dest='iterations', default=10)
     parser.add_argument('-u', action="store", dest='max_unroll', default=8)
     parser.add_argument('-t', action="store", dest='tlb_size', default=8)
+    parser.add_argument('-v', action="store", dest='verbose', default=0)
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
                         default=0)
-    results = parser.parse_args()
+    options = parser.parse_args()
 
     print "Settings if custom values passed"
-    print "Workloads: " + str(results.workloads_list)
-    print "Databases: " + str(results.databases_list)
-    print "Output Dir: " +  OUT_DIR + results.out_dir
-    print "Iterations: " + str(results.iterations)
-    print "Unrolled streams: " + str(results.max_unroll)
-    print "Accel TLB size: " + str(results.tlb_size)
-    print "Debug flags: " + results.debug_flags
-    print "Debug Start: " + str(results.debug_start)
+    print "Workloads: " + str(options.workloads_list)
+    print "Databases: " + str(options.databases_list)
+    print "Output Dir: " +  OUT_DIR + options.out_dir
+    print "Iterations: " + str(options.iterations)
+    print "Unrolled streams: " + str(options.max_unroll)
+    print "Accel TLB size: " + str(options.tlb_size)
+    print "Debug flags: " + options.debug_flags
+    print "Debug Start: " + str(options.debug_start)
+    print "Debug Verbosity: " + str(options.verbose)
 
     os.chdir(GEM5_DIR)
 
     # Create output folder if it doesn't exist
-    if not os.path.exists(OUT_DIR + results.out_dir):
-        os.makedirs(OUT_DIR + results.out_dir)
+    if not os.path.exists(OUT_DIR + options.out_dir):
+        os.makedirs(OUT_DIR + options.out_dir)
 
     with open(GEM5_DIR + 'workloads.json') as data_file:
         data = json.load(data_file)
     for workload in data:
-        if results.workloads_list != [] and workload not in\
-            results.workloads_list:
+        if options.workloads_list != [] and workload not in\
+            options.workloads_list:
             continue
         for parameters in data[workload]:
-            if results.databases_list != [] and parameters['database'] not in\
-                results.databases_list:
+            if options.databases_list != [] and parameters['database'] not in\
+                options.databases_list:
                 print parameters['database']
+                continue
+            if parameters['database'] in DONT_RUN:
                 continue
 
             # Create the logs folder, to insert rcS file and run command
-            logs_dir = os.path.join(OUT_DIR, results.out_dir, 'logs_'\
+            logs_dir = os.path.join(OUT_DIR, options.out_dir, 'logs_'\
                                     + workload + '_' + os.path.splitext(\
-                                    parameters['database'])[0])
+                                    parameters['database'])[0] + '_tlb'
+                                    + options.tlb_size + '_unroll'
+                                    + options.max_unroll)
             if not os.path.exists(logs_dir):
                 os.makedirs(logs_dir)
 
             # Create the rcS file first
-            f = open('configs/boot/accel.rcS', 'w')
+            f = open(os.path.join(logs_dir, 'accel.rcS'), 'w')
             write_rcs_file(f, workload, parameters['database'],\
-                            results.iterations, parameters['args'])
+                            options.iterations, parameters['args'])
             f.close()
 
-            # Place a copy in the logs folder
-            shutil.copy2('configs/boot/accel.rcS', logs_dir)
+#             Place a copy in the logs folder
+#            shutil.copy2('configs/boot/accel.rcS', logs_dir)
 
             # Create the debug string if needed
             debug_str = ''
-            if results.debug_flags != '':
-                debug_str = ' --debug-flags=' + results.debug_flags +\
-                    ' --debug-start=' + str(results.debug_start)\
-                    + ' --debug-file=accel.log'
+            if options.debug_flags != '':
+                debug_str = ' --debug-flags=' + options.debug_flags +\
+                    ' --debug-start=' + str(options.debug_start)
+                if options.verbose == '0':
+                    debug_str += ' --debug-file=accel.log'
 
             # Create the gem5 run command
-            run_cmd = './build/X86/gem5.opt ' + debug_str + ' -d '\
+            run_cmd = 'time ./build/X86/gem5.opt ' + debug_str + ' -d '\
                 + logs_dir + ' ' + GEM5_SCRIPT\
-                + ' --max_unroll=' + str(results.max_unroll)\
-                + ' --tlb_size=' + str(results.tlb_size)\
+                + ' --max_unroll=' + str(options.max_unroll)\
+                + ' --tlb_size=' + str(options.tlb_size)\
                 + ' --algorithm=' + workload\
-                + ' --script=configs/boot/accel.rcS\n'
+                + ' --script=' + os.path.join(logs_dir, 'accel.rcS') + '\n'
             f = open(os.path.join(logs_dir, 'runscript'), 'w')
             f.write(run_cmd)
             f.close
