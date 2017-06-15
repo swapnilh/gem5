@@ -343,10 +343,11 @@ GraphEngine::ProcLoopIteration::stage1()
     // Vertex is 128 bits
     uint8_t *src = new uint8_t[16];
     stage = 1;
+    Addr addr = params.ActiveVertexTable+16*i;
     // Checking for overflow
-    assert(params.ActiveVertexTable+16*i >= params.ActiveVertexTable);
-    accel->accessMemoryCallback(params.ActiveVertexTable+16*i, 16,
-                                BaseTLB::Read, src, this);
+    assert(addr >= params.ActiveVertexTable && addr <=
+           params.ActiveVertexTable+params.ActiveVertexCount*sizeof(Vertex));
+    accel->accessMemoryCallback(addr, 16, BaseTLB::Read, src, this);
 }
 
 void
@@ -356,10 +357,11 @@ GraphEngine::ProcLoopIteration::stage2()
     // edgeId is 64 bits
     uint8_t *edgeId = new uint8_t[8];
     stage = 2;
+    Addr addr = params.EdgeIdTable+8*src.id;
     // Check for overflow
-    assert(params.EdgeIdTable+8*src.id >= params.EdgeIdTable);
-    accel->accessMemoryCallback(params.EdgeIdTable+8*src.id, 8, BaseTLB::Read,
-                                edgeId, this);
+    assert(addr >= params.EdgeIdTable &&
+           addr <= params.EdgeIdTable+params.VertexCount*sizeof(Vertex));
+    accel->accessMemoryCallback(addr, 8, BaseTLB::Read, edgeId, this);
 }
 
 void
@@ -369,11 +371,12 @@ GraphEngine::ProcLoopIteration::stage3()
     // Edge is 192 bits
     uint8_t *edge = new uint8_t[24];
     stage = 3;
+    Addr addr = params.EdgeTable+24*edgeId;
     // Check for overflow
 //    DPRINTFS(Accel, accel, "src:%d edgeId:%d\n", src.id, edgeId);
-    assert(params.EdgeTable+24*edgeId >= params.EdgeTable);
-    accel->accessMemoryCallback(params.EdgeTable+24*edgeId, 24, BaseTLB::Read,
-                                edge, this);
+    // TODO - worth it to pass numEdges to correct this assert?
+    assert(addr >= params.EdgeTable);
+    accel->accessMemoryCallback(addr, 24, BaseTLB::Read, edge, this);
 }
 
 void
@@ -387,11 +390,11 @@ GraphEngine::ProcLoopIteration::stage4()
     // VertexProperty is 64 bits
     uint8_t *destProp = new uint8_t[8];
     stage = 4;
+    Addr addr = params.VertexPropertyTable+8*edge.destId;
     // Check for overflow
-    assert(params.VertexPropertyTable+8*edge.destId >=
-            params.VertexPropertyTable);
-    accel->accessMemoryCallback(params.VertexPropertyTable+8*edge.destId, 8,
-                                BaseTLB::Read, destProp, this);
+    assert(addr >= params.VertexPropertyTable && addr <=
+           params.VertexPropertyTable+params.VertexCount*sizeof(Vertex));
+    accel->accessMemoryCallback(addr, 8, BaseTLB::Read, destProp, this);
 }
 
 void
@@ -406,15 +409,14 @@ GraphEngine::ProcLoopIteration::stage5()
     // VertexProperty is 64 bits
     uint8_t *tempProp = new uint8_t[8];
     stage = 5;
-
+    Addr addr = params.VTempPropertyTable+8*edge.destId;
     // Check for overflow
-    assert(params.VTempPropertyTable+8*edge.destId >=
-            params.VTempPropertyTable);
+    assert(addr >= params.VTempPropertyTable && addr <=
+           params.VTempPropertyTable+params.VertexCount*sizeof(Vertex));
     //Try to acquire lock on the addr
-    if (accel->acquireLock(params.VTempPropertyTable+8*edge.destId, this))
+    if (accel->acquireLock(addr, this))
     {
-        accel->accessMemoryCallback(params.VTempPropertyTable+8*edge.destId,
-                                8, BaseTLB::Read, tempProp, this);
+        accel->accessMemoryCallback(addr, 8, BaseTLB::Read, tempProp, this);
     }
 }
 
@@ -428,10 +430,9 @@ GraphEngine::ProcLoopIteration::stage6()
     uint8_t *tempWrite = new uint8_t[8];
     *(VertexProperty*)tempWrite = tempProp;
     stage = 6;
-    assert(params.VTempPropertyTable+8*edge.destId >=
-            params.VTempPropertyTable);
-    accel->accessMemoryCallback(params.VTempPropertyTable+8*edge.destId,
-                                8, BaseTLB::Write, tempWrite, this);
+    Addr addr = params.VTempPropertyTable+8*edge.destId;
+    //No assert as this addr is same as one in stage 5
+    accel->accessMemoryCallback(addr, 8, BaseTLB::Write, tempWrite, this);
 }
 
 /*
@@ -521,9 +522,10 @@ GraphEngine::ApplyLoopIteration::stage8()
     uint8_t *vProp = new uint8_t[8];
     stage = 8;
     // Checking for overflow
-    assert(params.VertexPropertyTable+8*i >= params.VertexPropertyTable);
-    accel->accessMemoryCallback(params.VertexPropertyTable+8*i, 8,
-                                BaseTLB::Read, vProp, this);
+    Addr addr = params.VertexPropertyTable+8*i;
+    assert(addr >= params.VertexPropertyTable && addr <=
+           params.VertexPropertyTable+params.VertexCount*sizeof(Vertex));
+    accel->accessMemoryCallback(addr, 8, BaseTLB::Read, vProp, this);
 }
 
 void
@@ -533,9 +535,10 @@ GraphEngine::ApplyLoopIteration::stage9()
     uint8_t *tempProp = new uint8_t[8];
     stage = 9;
     // Checking for overflow
-    assert(params.VTempPropertyTable+8*i >= params.VTempPropertyTable);
-    accel->accessMemoryCallback(params.VTempPropertyTable+8*i, 8,
-                                BaseTLB::Read, tempProp, this);
+    Addr addr = params.VTempPropertyTable+8*i;
+    assert(addr >= params.VTempPropertyTable && addr <=
+           params.VTempPropertyTable+params.VertexCount*sizeof(Vertex));
+    accel->accessMemoryCallback(addr, 8, BaseTLB::Read, tempProp, this);
 }
 
 void
@@ -545,8 +548,10 @@ GraphEngine::ApplyLoopIteration::stage10()
     uint8_t *vConstProp = new uint8_t[8];
     stage = 10;
     // Checking for overflow
-    assert(params.VConstPropertyTable+8*i >= params.VConstPropertyTable);
-    accel->accessMemoryCallback(params.VConstPropertyTable+8*i, 8,
+    Addr addr = params.VConstPropertyTable+8*i;
+    assert(addr >= params.VConstPropertyTable && addr <=
+           params.VConstPropertyTable+params.VertexCount*sizeof(Vertex));
+    accel->accessMemoryCallback(addr, 8,
                                 BaseTLB::Read, vConstProp, this);
 }
 
@@ -561,9 +566,10 @@ GraphEngine::ApplyLoopIteration::stage11()
                  "tempProp:%d\n", i, vProp, tempProp);
         uint8_t *tempWrite = new uint8_t[8];
         *(VertexProperty*)tempWrite = tempProp;
-        assert(params.VertexPropertyTable+8*i >= params.VertexPropertyTable);
-        accel->accessMemoryCallback(params.VertexPropertyTable+8*i,
-                8, BaseTLB::Write, tempWrite, this);
+        Addr addr = params.VertexPropertyTable+8*i;
+        assert(addr >= params.VertexPropertyTable && addr <=
+               params.VertexPropertyTable+params.VertexCount*sizeof(Vertex));
+        accel->accessMemoryCallback(addr, 8, BaseTLB::Write, tempWrite, this);
     }
     else
         accel->schedule(runStage13, accel->nextCycle());
@@ -578,15 +584,14 @@ GraphEngine::ApplyLoopIteration::stage12()
     stage = 12;
     // Store ActiveVertex[UpdatedActiveVertexCount++] = v
     accel->UpdatedActiveVertexCount++;
+    assert(accel->UpdatedActiveVertexCount <= params.VertexCount);
     DPRINTFS(AccelVerbose, accel, "Adding %d to Active list,"
              " ActiveVertexCount:%d\n", i, accel->UpdatedActiveVertexCount);
     uint8_t *tempWrite = new uint8_t[16];
     *(Vertex*)tempWrite = v;
-    assert(params.ActiveVertexTable+16*accel->UpdatedActiveVertexCount >=
-            params.ActiveVertexTable);
-    accel->accessMemoryCallback(params.ActiveVertexTable
-            + 16*accel->UpdatedActiveVertexCount, 16, BaseTLB::Write,
-            tempWrite, this);
+    Addr addr = params.ActiveVertexTable+16*accel->UpdatedActiveVertexCount;
+    assert(addr >= params.ActiveVertexTable);
+    accel->accessMemoryCallback(addr, 16, BaseTLB::Write, tempWrite, this);
 }
 
 void
@@ -662,7 +667,8 @@ GraphEngine::sendFinish()
 {
     status = Returning;
 
-    DPRINTF(Accel, "Sending finish GraphEngine\n");
+    warn("Sending finish from GraphEngine\n");
+    DPRINTF(Accel, "Sending finish from GraphEngine\n");
 
     cyclesActive[0] = curTick() - startTick;
     startTick = 0;
@@ -690,9 +696,7 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
     RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
     req->setContext(id);
     req->taskId(taskId);
-    if (mode == BaseTLB::Write) {
-            req->setFlags(Request::UNCACHEABLE);
-    }
+    req->setFlags(Request::UNCACHEABLE);
 
     DPRINTF(AccelVerbose, "Translating for addr %#x\n", req->getVaddr());
 
