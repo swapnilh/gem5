@@ -72,7 +72,6 @@ TLB::TLB(const Params *p)
     }
 
     walker = p->walker;
-    walker->setForAccel(forAccel);
     walker->setTLB(this);
 }
 
@@ -333,23 +332,18 @@ TLB::translate(RequestPtr req, ThreadContext *tc, Translation *translation,
             DPRINTF(TLB, "Paging enabled.\n");
             // The vaddr already has the segment base applied.
             TlbEntry *entry = lookup(vaddr);
-            if (mode == Read) {
-                rdAccesses++;
-            }
-            else {
-                wrAccesses++;
-            }
+            if (mode == Read) rdAccesses++;
+            else wrAccesses++;
+
             if (!entry) {
                 if (FullSystem) {
                     DPRINTF(TLB, "Handling a TLB miss for "
                             "address %#x at pc %#x.\n",
                             vaddr, tc->instAddr());
-                    if (mode == Read) {
-                        rdMisses++;
-                    }
-                    else {
-                        wrMisses++;
-                    }
+
+                    if (mode == Read) rdMisses++;
+                    else wrMisses++;
+
                     Fault fault = walker->start(tc, translation, req, mode);
                     if (timing || fault != NoFault) {
                         DPRINTF(TLB, "Got ignored in atomic mode.\n");

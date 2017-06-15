@@ -203,11 +203,7 @@ namespace X86ISA
         void setTLB(TLB * _tlb)
         {
             tlb = _tlb;
-        }
-
-        void setForAccel(bool _forAccel)
-        {
-            forAccel = _forAccel;
+            forAccel = _tlb->forAccel;
         }
 
         typedef X86PagetableWalkerParams Params;
