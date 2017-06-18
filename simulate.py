@@ -7,14 +7,16 @@ import time
 import json
 import shutil
 
-GEM5_DIR = "/nobackup/swapnilh/gem5-accelerator/"
-OUT_DIR = "/nobackup/swapnilh/gem5-accelerator/logs/"
+GEM5_DIR = '/nobackup/swapnilh/gem5-accelerator/'
+OUT_DIR = '/nobackup/swapnilh/gem5-accelerator/logs/'
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
 DONT_RUN = ['graph_test.mtx']
 
 def write_rcs_file(f, workload, database, iterations, args):
     header = '''
 #!/bin/bash
+echo 2 > /proc/sys/kernel/randomize_va_space
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
 cd /home/swapnil/graph_engine/
 make clean
 make
