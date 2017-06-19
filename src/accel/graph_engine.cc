@@ -699,8 +699,12 @@ GraphEngine::accessMemoryCallback(Addr addr, int size, BaseTLB::Mode mode,
                               uint8_t *data, LoopIteration *iter)
 {
     // True if no other outstanding request to address
-    if (setAddressCallback(addr, iter))
-        accessMemory(addr, size, mode, data, ((iter->i)%maxUnroll)+1);
+    if (setAddressCallback(addr, iter)) {
+        if (iter) {
+            accessMemory(addr, size, mode, data, ((iter->i)%maxUnroll)+1);
+        }
+        else accessMemory(addr, size, mode, data, 0);
+    }
 }
 
 void
@@ -720,6 +724,7 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
     DPRINTF(AccelVerbose, "Translating for addr %#x\n", req->getVaddr());
 
     addrTransStartTick[id] = curTick();
+    memAccessStartTick[id] = curTick();
 
     Addr split_addr = roundDown(addr + size - 1, block_size);
     assert(split_addr <= addr || split_addr - addr < block_size);
@@ -736,12 +741,41 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
             new DataTranslation<GraphEngine *>(this, state, 1);
         tlb->translateTiming(req1, context, trans1, mode);
         tlb->translateTiming(req2, context, trans2, mode);
+
+        if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
+            //Launch memoryAccess speculatively
+            RequestPtr spec_req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+            spec_req->setContext(id);
+            spec_req->taskId(taskId);
+            spec_req->setFlags(Request::UNCACHEABLE);
+
+            RequestPtr spec_req1, spec_req2;
+            spec_req->splitOnVaddr(split_addr, spec_req1, spec_req2);
+            // Paddr for main request has to be after splitOnVaddr to avoid
+            // assert
+            spec_req->setPaddr(addr);
+            spec_req1->setPaddr(addr);
+            spec_req2->setPaddr(spec_req2->getVaddr());
+            assert(mode == BaseTLB::Read);
+            sendSplitData(spec_req1, spec_req2, spec_req,
+                    data, mode == BaseTLB::Read);
+        }
     } else {
         WholeTranslationState *state =
             new WholeTranslationState(req, data, NULL, mode);
         DataTranslation<GraphEngine*> *translation
             = new DataTranslation<GraphEngine*>(this, state);
         tlb->translateTiming(req, context, translation, mode);
+
+        if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
+            //Launch memoryAccess speculatively
+            RequestPtr spec_req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+            spec_req->setContext(id);
+            spec_req->taskId(taskId);
+            spec_req->setFlags(Request::UNCACHEABLE);
+            spec_req->setPaddr(addr);
+            sendData(spec_req, data, mode == BaseTLB::Read);
+        }
     }
 }
 
@@ -763,21 +797,49 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
         cyclesAddressTranslation[id] += curTick() - addrTransStartTick[id];
     }
 
-    memAccessStartTick[id] = curTick();
-
-    if (!state->isSplit) {
-        sendData(state->mainReq, state->data, state->mode == BaseTLB::Read);
-    }
-    else {
-        assert(state->mode == BaseTLB::Read);
-        sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
-                        state->data, state->mode == BaseTLB::Read);
+    PacketPtr pkt;
+    auto it_proc = procAddressCallbacks.find(state->mainReq->getVaddr());
+    auto it_apply = applyAddressCallbacks.find(state->mainReq->getVaddr());
+    switch (status) {
+    case ExecutingProcessingLoop:
+        if (it_proc == procAddressCallbacks.end()) {
+            panic("Can't find address in loop callback");
+        }
+        it_proc->second.translationDone = true;
+        pkt = it_proc->second.respPkt;
+        if (pkt) {
+            DPRINTF(AccelVerbose, "Data response already received.\n");
+            recvProcessingLoop(pkt);
+        }
+        break;
+    case ExecutingApplyLoop:
+        if (it_apply == applyAddressCallbacks.end()) {
+            panic("Can't find address in loop callback");
+        }
+        it_apply->second.translationDone = true;
+        pkt = it_apply->second.respPkt;
+        if (pkt) {
+            DPRINTF(AccelVerbose, "Data response already received.\n");
+            recvApplyLoop(pkt);
+        }
+        break;
+    default:
+        if (!state->isSplit) {
+            sendData(state->mainReq, state->data,
+                        state->mode == BaseTLB::Read);
+        }
+        else {
+            assert(state->mode == BaseTLB::Read);
+            sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
+                            state->data, state->mode == BaseTLB::Read);
+        }
+        return;
     }
 
     delete state;
 }
 
-void
+    void
 GraphEngine::sendData(RequestPtr req, uint8_t *data, bool read)
 {
     DPRINTF(AccelVerbose, "Sending request for addr %#x\n", req->getPaddr());
@@ -839,14 +901,18 @@ GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
                     (((ProcLoopIteration*)iter)->getStage() == 4));
             no_outstanding = false;
         }
-        procAddressCallbacks[addr].push_back((ProcLoopIteration*)iter);
+        procAddressCallbacks[addr] = {{}, NULL, false};
+        procAddressCallbacks[addr].iterationQueue.push_back(
+            (ProcLoopIteration*)iter);
         break;
     case ExecutingApplyLoop:
         DPRINTF(AccelVerbose, "Address :%#x set by iter:%s\n", addr,
                 ((ApplyLoopIteration*)iter)->name());
         assert(applyAddressCallbacks.find(addr) ==
                applyAddressCallbacks.end());
-        applyAddressCallbacks[addr].push_back((ApplyLoopIteration*)iter);
+        applyAddressCallbacks[addr] = {{}, NULL, false};
+        applyAddressCallbacks[addr].iterationQueue.push_back(
+            (ApplyLoopIteration*)iter);
         break;
     default:
         assert(0);
@@ -859,16 +925,36 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
 {
     auto it = procAddressCallbacks.find(pkt->req->getVaddr());
     if (it == procAddressCallbacks.end()) {
+        DPRINTF(Accel, "Searching callbacks for addr:%#x\n",
+                pkt->req->getVaddr());
         panic("Can't find address in loop callback");
     }
 
-    std::vector<ProcLoopIteration*> waiters = it->second;
+    if (!it->second.respPkt) {
+        DPRINTF(AccelVerbose, "RespPkt filled for addr:%#x\n",
+               pkt->req->getVaddr());
+        it->second.respPkt = pkt;
+    }
+
+    // This function will be called again on finishTranslation
+    if (!it->second.translationDone) {
+        DPRINTF(AccelVerbose, "Translation not yet done for addr:%#x\n",
+               pkt->req->getVaddr());
+        return;
+    }
+
+    DPRINTF(AccelVerbose, "Access (data+translation) finished for addr:%#x\n",
+           pkt->req->getVaddr());
+
+    std::vector<ProcLoopIteration*> waiters = it->second.iterationQueue;
     for ( auto waiter = waiters.begin(); waiter != waiters.end(); ++waiter) {
         DPRINTF(AccelVerbose, "Address :%#x unset by iter:%s\n",
                 pkt->req->getVaddr(), ((ProcLoopIteration*)*waiter)->name());
         ((ProcLoopIteration*)*waiter)->recvResponse(pkt);
     }
     procAddressCallbacks.erase(it);
+    delete pkt->req;
+    delete pkt;
 }
 
 void
@@ -879,14 +965,33 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
         panic("Can't find address in loop callback");
     }
 
-    ApplyLoopIteration *iter = it->second.back();
+    if (!it->second.respPkt) {
+        DPRINTF(AccelVerbose, "RespPkt filled for address:%#x\n",
+               pkt->req->getVaddr());
+        it->second.respPkt = pkt;
+    }
+
+    // This function will be called again on finishTranslation
+    if (!it->second.translationDone) {
+        DPRINTF(AccelVerbose, "Translation not yet done for address:%#x\n",
+               pkt->req->getVaddr());
+        return;
+    }
+
+    DPRINTF(AccelVerbose, "Access (data+translation) finished for addr:%#x\n",
+           pkt->req->getVaddr());
+
+    std::vector<ApplyLoopIteration*> waiters = it->second.iterationQueue;
+    ApplyLoopIteration *iter = waiters.back();
     DPRINTF(AccelVerbose, "Address :%#x unset by iter:%s\n",
             pkt->req->getVaddr(), ((ApplyLoopIteration*)iter)->name());
     iter->recvResponse(pkt);
-    it->second.pop_back();
+    waiters.pop_back();
     //Should have had only one outstanding request
-    assert(it->second.empty());
+    assert(waiters.empty());
     applyAddressCallbacks.erase(it);
+    delete pkt->req;
+    delete pkt;
 }
 
 bool
@@ -938,8 +1043,12 @@ GraphEngine::MemoryPort::recvTimingResp(PacketPtr pkt)
         panic("Got a memory response at a bad time");
     }
 
-    delete pkt->req;
-    delete pkt;
+    /* Packets for these will be destroyed in recv*Loop */
+    if ((graphEngine.status != ExecutingProcessingLoop) &&
+        (graphEngine.status != ExecutingApplyLoop)) {
+        delete pkt->req;
+        delete pkt;
+    }
 
     return true;
 }
