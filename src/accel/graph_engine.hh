@@ -249,9 +249,17 @@ class GraphEngine : public BasicPioDevice
 
     int paramsLoaded;
 
-    std::map<Addr, std::vector<ProcLoopIteration*>> procAddressCallbacks;
+    template<class T>
+    struct MSHR
+    {
+        std::vector<T*> iterationQueue;
+        PacketPtr respPkt;
+        bool translationDone;
+    };
 
-    std::map<Addr, std::vector<ApplyLoopIteration*>> applyAddressCallbacks;
+    std::map<Addr, MSHR<ProcLoopIteration>> procAddressCallbacks;
+
+    std::map<Addr, MSHR<ApplyLoopIteration>> applyAddressCallbacks;
 
     // Used for atomic tempProp RMWs
     std::map<Addr, std::deque<ProcLoopIteration*>> lockedAddresses;
