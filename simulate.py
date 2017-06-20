@@ -12,15 +12,25 @@ OUT_DIR = '/nobackup/swapnilh/gem5-accelerator/logs/'
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
 DONT_RUN = ['graph_test.mtx']
 
-def write_rcs_file(f, workload, database, iterations, args):
-    header = '''
-#!/bin/bash
-echo 2 > /proc/sys/kernel/randomize_va_space
-echo never > /sys/kernel/mm/transparent_hugepage/enabled
-cd /home/swapnil/graph_engine/
-make clean
-make
-'''
+def write_rcs_file(f, workload, database, iterations, prot_only, args):
+    header = '''#!/bin/bash
+    echo 2 > /proc/sys/kernel/randomize_va_space
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    '''
+    if prot_only == '1':
+        header += '''
+        cd /home/swapnil/identity_mapping/
+        make clean
+        make
+        ./identity_map name testing graph-app-accel-fs
+        ./apriori_paging_set_process graph-app-accel-fs
+        export MALLOC_MMAP_THRESHOLD_=1
+        '''
+    header += '''
+    cd /home/swapnil/graph_engine/
+    make clean
+    make
+    '''
     f.write(header)
     main = './graph-app-accel-fs /home/swapnil/graph_engine/data/' +\
            database + ' ' + workload + ' ' + str(iterations) + ' ' + args\
@@ -48,6 +58,7 @@ def main(argv):
     parser.add_argument('-u', action="store", dest='max_unroll', default=8)
     parser.add_argument('-t', action="store", dest='tlb_size', default=8)
     parser.add_argument('-v', action="store", dest='verbose', default=0)
+    parser.add_argument('-p', action="store", dest='prot_only', default=0)
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
@@ -55,6 +66,7 @@ def main(argv):
     options = parser.parse_args()
 
     print "Settings if custom values passed"
+    print "Protection-Only: " + str(options.prot_only)
     print "Workloads: " + str(options.workloads_list)
     print "Databases: " + str(options.databases_list)
     print "Output Dir: " +  OUT_DIR + options.out_dir
@@ -89,15 +101,18 @@ def main(argv):
             logs_dir = os.path.join(OUT_DIR, options.out_dir, 'logs_'\
                                     + workload + '_' + os.path.splitext(\
                                     parameters['database'])[0] + '_tlb'
-                                    + options.tlb_size + '_unroll'
-                                    + options.max_unroll)
+                                    + str(options.tlb_size) + '_unroll'
+                                    + str(options.max_unroll))
+            if options.prot_only == '1':
+                logs_dir += '_prot'
             if not os.path.exists(logs_dir):
                 os.makedirs(logs_dir)
 
             # Create the rcS file first
             f = open(os.path.join(logs_dir, 'accel.rcS'), 'w')
             write_rcs_file(f, workload, parameters['database'],\
-                            options.iterations, parameters['args'])
+                            options.iterations, options.prot_only,
+                            parameters['args'])
             f.close()
 
 #             Place a copy in the logs folder
@@ -111,8 +126,13 @@ def main(argv):
                 if options.verbose == '0':
                     debug_str += ' --debug-file=accel.log'
 
+            if options.prot_only == '1':
+                binary = './build/X86-prot/gem5.opt '
+            else:
+                binary = './build/X86/gem5.opt '
+
             # Create the gem5 run command
-            run_cmd = 'time ./build/X86/gem5.opt ' + debug_str + ' -d '\
+            run_cmd = 'time ' + binary + debug_str + ' -d '\
                 + logs_dir + ' ' + GEM5_SCRIPT\
                 + ' --max_unroll=' + str(options.max_unroll)\
                 + ' --tlb_size=' + str(options.tlb_size)\
