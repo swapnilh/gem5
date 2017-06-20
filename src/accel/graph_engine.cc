@@ -799,6 +799,13 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
         cyclesAddressTranslation[id] += curTick() - addrTransStartTick[id];
     }
 
+    bool identityMapping = true;
+
+    if (state->mainReq->getVaddr() != state->mainReq->getPaddr()) {\
+        DPRINTF(Accel, "Identity Mapping did not hold for this txn\n");
+        identityMapping = false;
+    }
+
     PacketPtr pkt;
     auto it_proc = procAddressCallbacks.find(state->mainReq->getVaddr());
     auto it_apply = applyAddressCallbacks.find(state->mainReq->getVaddr());
@@ -808,6 +815,23 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
             panic("Can't find address in loop callback");
         }
         it_proc->second.translationDone = true;
+
+        if (!identityMapping) {
+            PacketPtr delPkt = it_proc->second.respPkt;
+            it_proc->second.respPkt = NULL;
+            delete delPkt;
+            DPRINTF(Accel, "Resending data access\n");
+            if (!state->isSplit) {
+                sendData(state->mainReq, state->data,
+                        state->mode == BaseTLB::Read);
+            }
+            else {
+                assert(state->mode == BaseTLB::Read);
+                sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
+                        state->data, state->mode == BaseTLB::Read);
+            }
+        }
+
         pkt = it_proc->second.respPkt;
         if (pkt) {
             DPRINTF(AccelVerbose, "Data response already received.\n");
@@ -818,6 +842,23 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
         if (it_apply == applyAddressCallbacks.end()) {
             panic("Can't find address in loop callback");
         }
+
+        if (!identityMapping) {
+            PacketPtr delPkt = it_apply->second.respPkt;
+            it_apply->second.respPkt = NULL;
+            delete delPkt;
+            DPRINTF(Accel, "Resending data access\n");
+            if (!state->isSplit) {
+                sendData(state->mainReq, state->data,
+                        state->mode == BaseTLB::Read);
+            }
+            else {
+                assert(state->mode == BaseTLB::Read);
+                sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
+                        state->data, state->mode == BaseTLB::Read);
+            }
+        }
+
         it_apply->second.translationDone = true;
         pkt = it_apply->second.respPkt;
         if (pkt) {
