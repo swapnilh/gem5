@@ -42,6 +42,7 @@
 #include "cpu/translation.hh"
 #include "dev/io_device.hh"
 #include "mem/mport.hh"
+#include "mem/request.hh"
 #include "params/GraphEngine.hh"
 #include "params/GraphEngineDriver.hh"
 #include "sim/emul_driver.hh"
@@ -263,12 +264,20 @@ class GraphEngine : public BasicPioDevice
      * needed by the cache blocks */
     uint32_t taskId;
 
+    /* Needed for some stats? */
+    MasterID masterID;
+
     /* All statistics needed by the accelerator model */
     /* For all stats, element 0 is for the accel, others are for streams */
     //Stats::Scalar cyclesEnabled;
+    Stats::Vector memReads;
+    Stats::Vector memWrites;
     Stats::Vector cyclesActive;
     Stats::Vector cyclesMemoryAccess;
     Stats::Vector cyclesAddressTranslation;
+    Stats::Formula utilization;
+    Stats::Formula avgMemAccLat;
+    Stats::Formula avgTranslationLat;
 
     /* Helper variables for statistics */
     Tick startTick;

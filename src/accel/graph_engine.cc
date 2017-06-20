@@ -14,8 +14,9 @@ GraphEngine::GraphEngine(const Params *p) :
     BasicPioDevice(p, 32768), system(p->system), completedIterations(0),
     UpdatedActiveVertexCount(0), procFinished(0), applyFinished(0),
     memoryPort(p->name+".memory_port", this), monitorAddr(0),
-    paramsAddr(0), context(NULL), tlb(p->tlb),
-    maxUnroll(p->max_unroll), status(Uninitialized), runEvent(this)
+    paramsAddr(0), context(NULL), tlb(p->tlb), maxUnroll(p->max_unroll),
+    status(Uninitialized),
+    masterID(p->system->getMasterId(name() + ".graph_engine")), runEvent(this)
 {
     assert(this->pioAddr == p->pio_addr);
     // Attach correct accelerator based on config
@@ -693,10 +694,13 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
 {
     unsigned block_size = 64; //TODO figure out better version?
 
-    RequestPtr req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+    RequestPtr req = new Request(-1, addr, size, 0, masterID, 0, 0, 0);
     req->setContext(id);
     req->taskId(taskId);
     req->setFlags(Request::UNCACHEABLE);
+
+    if (mode == BaseTLB::Read) memReads[id]++;
+    else memWrites[id]++;
 
     DPRINTF(AccelVerbose, "Translating for addr %#x\n", req->getVaddr());
 
@@ -738,7 +742,12 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
             state->mainReq->getVaddr(), state->mainReq->getPaddr());
 
     ContextID id = state->mainReq->contextId();
-    cyclesAddressTranslation[id] += curTick() - addrTransStartTick[id];
+
+    /* Doesn't make sense for 0 - overlapping param translations */
+    if (id > 0 ) {
+        cyclesAddressTranslation[id] += curTick() - addrTransStartTick[id];
+    }
+
     memAccessStartTick[id] = curTick();
 
     if (!state->isSplit) {
@@ -926,11 +935,17 @@ GraphEngine::regStats()
     using namespace Stats;
 
     BasicPioDevice::regStats();
-/*
-    cyclesEnabled
-        .name(name() + ".cyclesEnabled")
-        .desc("Cycles when Accelerator is enabled");
-*/
+
+    memReads
+        .init(maxUnroll+1)
+        .name(name() + ".memReads")
+        .desc("Number of memory reads");
+
+    memWrites
+        .init(maxUnroll+1)
+        .name(name() + ".memWrites")
+        .desc("Number of memory writes");
+
     cyclesActive
         .init(maxUnroll+1)
         .name(name() + ".cyclesActive")
@@ -944,8 +959,30 @@ GraphEngine::regStats()
     cyclesAddressTranslation
         .init(maxUnroll+1)
         .name(name() + ".cyclesAddressTranslation")
-        .desc("Busy cycles for address translation per Accelerator stream");
+        .desc("Busy cycles for address translation per engine (ignore 0)");
 
+    utilization
+        .name(name() + ".utilization")
+        .desc("utilization of the engine (ignore 0)")
+        .precision(2);
+
+    utilization = (cyclesActive - cyclesMemoryAccess -
+                    cyclesAddressTranslation) * 100 / (cyclesActive);
+
+    avgMemAccLat
+        .name(name() + ".avgMemAccLat")
+        .desc("average memory access latency")
+        .precision(2);
+
+    avgMemAccLat = (cyclesMemoryAccess) / (memReads + memWrites);
+
+    avgTranslationLat
+        .name(name() + ".avgTranslationLat")
+        .desc("average address translation latency")
+        .precision(2);
+
+    avgTranslationLat = (cyclesAddressTranslation) /
+                        (memReads + memWrites);
 }
 
 GraphEngine*
