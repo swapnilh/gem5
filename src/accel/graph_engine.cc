@@ -47,6 +47,7 @@ GraphEngine::GraphEngine(const Params *p) :
 
     memAccessStartTick.resize(maxUnroll+1);
     addrTransStartTick.resize(maxUnroll+1);
+    stallStartTick.resize(maxUnroll+1);
 }
 
 BaseMasterPort &
@@ -710,6 +711,7 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
 
     addrTransStartTick[id] = curTick();
     memAccessStartTick[id] = curTick();
+    stallStartTick[id] = curTick();
 
     Addr split_addr = roundDown(addr + size - 1, block_size);
     assert(split_addr <= addr || split_addr - addr < block_size);
@@ -729,7 +731,8 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
 
         if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
             //Launch memoryAccess speculatively
-            RequestPtr spec_req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+            RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
+                                                0, 0);
             spec_req->setContext(id);
             spec_req->taskId(taskId);
             spec_req->setFlags(Request::UNCACHEABLE);
@@ -754,7 +757,8 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
 
         if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
             //Launch memoryAccess speculatively
-            RequestPtr spec_req = new Request(-1, addr, size, 0, 0, 0, 0, 0);
+            RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
+                                                0, 0);
             spec_req->setContext(id);
             spec_req->taskId(taskId);
             spec_req->setFlags(Request::UNCACHEABLE);
@@ -972,6 +976,9 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
     DPRINTF(AccelVerbose, "Access (data+translation) finished for addr:%#x\n",
            pkt->req->getVaddr());
 
+    ContextID id = pkt->req->contextId();
+    cyclesStalled[id] += curTick() - stallStartTick[id];
+
     std::vector<ProcLoopIteration*> waiters = it->second.iterationQueue;
     for ( auto waiter = waiters.begin(); waiter != waiters.end(); ++waiter) {
         ((ProcLoopIteration*)*waiter)->recvResponse(pkt);
@@ -1006,6 +1013,11 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
 
     DPRINTF(AccelVerbose, "Access (data+translation) finished for addr:%#x\n",
            pkt->req->getVaddr());
+
+    ContextID id = pkt->req->contextId();
+    cyclesStalled[id] += curTick() - stallStartTick[id];
+    DPRINTF(AccelVerbose, "Adding %lu cycles to cyclesStalled, start:%lu\n",
+            curTick() - stallStartTick[id], stallStartTick[id]);
 
     std::vector<ApplyLoopIteration*> waiters = it->second.iterationQueue;
     ApplyLoopIteration *iter = waiters.back();
@@ -1111,13 +1123,17 @@ GraphEngine::regStats()
         .name(name() + ".cyclesAddressTranslation")
         .desc("Busy cycles for address translation per engine (ignore 0)");
 
+    cyclesStalled
+        .init(maxUnroll+1)
+        .name(name() + ".cyclesStalled")
+        .desc("Cycles stalled for data fetch per engine (ignore 0)");
+
     utilization
         .name(name() + ".utilization")
         .desc("utilization of the engine (ignore 0)")
         .precision(2);
 
-    utilization = (cyclesActive - cyclesMemoryAccess -
-                    cyclesAddressTranslation) * 100 / (cyclesActive);
+    utilization = (cyclesActive - cyclesStalled) * 100 / (cyclesActive);
 
     avgMemAccLat
         .name(name() + ".avgMemAccLat")

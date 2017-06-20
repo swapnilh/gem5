@@ -283,6 +283,7 @@ class GraphEngine : public BasicPioDevice
     Stats::Vector cyclesActive;
     Stats::Vector cyclesMemoryAccess;
     Stats::Vector cyclesAddressTranslation;
+    Stats::Vector cyclesStalled;
     Stats::Formula utilization;
     Stats::Formula avgMemAccLat;
     Stats::Formula avgTranslationLat;
@@ -291,6 +292,7 @@ class GraphEngine : public BasicPioDevice
     Tick startTick;
     Tick processPhaseStartTick;
     Tick applyPhaseStartTick;
+    std::vector<Tick> stallStartTick;
     std::vector<Tick> memAccessStartTick;
     std::vector<Tick> addrTransStartTick;
 
