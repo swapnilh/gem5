@@ -946,7 +946,7 @@ GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
                     (((ProcLoopIteration*)iter)->getStage() == 4));
             no_outstanding = false;
         }
-        procAddressCallbacks[addr] = {{}, NULL, false};
+        if (no_outstanding) procAddressCallbacks[addr] = {{}, NULL, false};
         procAddressCallbacks[addr].iterationQueue.push_back(
             (ProcLoopIteration*)iter);
         break;
