@@ -17,7 +17,7 @@ def write_rcs_file(f, workload, database, iterations, prot_only, args):
     echo 2 > /proc/sys/kernel/randomize_va_space
     echo never > /sys/kernel/mm/transparent_hugepage/enabled
     '''
-    if prot_only == '1':
+    if prot_only == 1:
         header += '''
         cd /home/swapnil/identity_mapping/
         make clean
@@ -54,11 +54,16 @@ def main(argv):
                         default=[])
     parser.add_argument('-o', action="store", dest='out_dir',
                         default='logs-'+time.strftime("%d-%b"))
-    parser.add_argument('-i', action="store", dest='iterations', default=10)
-    parser.add_argument('-u', action="store", dest='max_unroll', default=8)
-    parser.add_argument('-t', action="store", dest='tlb_size', default=8)
-    parser.add_argument('-v', action="store", dest='verbose', default=0)
-    parser.add_argument('-p', action="store", dest='prot_only', default=0)
+    parser.add_argument('-i', action="store", dest='iterations', type=int,
+                        default=10)
+    parser.add_argument('-u', action="store", dest='max_unroll', type=int,
+                        default=8)
+    parser.add_argument('-t', action="store", dest='tlb_size', type=int,
+                        default=8)
+    parser.add_argument('-v', action="store", dest='verbose', type=int,
+                        default=0)
+    parser.add_argument('-p', action="store", dest='prot_only', type=int,
+                        default=0)
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
@@ -103,7 +108,7 @@ def main(argv):
                                     parameters['database'])[0] + '_tlb'
                                     + str(options.tlb_size) + '_unroll'
                                     + str(options.max_unroll))
-            if options.prot_only == '1':
+            if options.prot_only == 1:
                 logs_dir += '_prot'
             if not os.path.exists(logs_dir):
                 os.makedirs(logs_dir)
@@ -123,10 +128,10 @@ def main(argv):
             if options.debug_flags != '':
                 debug_str = ' --debug-flags=' + options.debug_flags +\
                     ' --debug-start=' + str(options.debug_start)
-                if options.verbose == '0':
+                if options.verbose == 0:
                     debug_str += ' --debug-file=accel.log'
 
-            if options.prot_only == '1':
+            if options.prot_only == 1:
                 binary = './build/X86-prot/gem5.opt '
             else:
                 binary = './build/X86/gem5.opt '
