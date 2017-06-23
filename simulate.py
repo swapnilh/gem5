@@ -12,7 +12,8 @@ OUT_DIR = '/nobackup/swapnilh/gem5-accelerator/logs/'
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
 DONT_RUN = ['graph_test.mtx']
 
-def write_rcs_file(f, workload, database, iterations, prot_only, args):
+def write_rcs_file(f, workload, database, iterations, prot_only, huge_page,\
+                    args):
     header = '''#!/bin/bash
     echo 2 > /proc/sys/kernel/randomize_va_space
     echo never > /sys/kernel/mm/transparent_hugepage/enabled
@@ -25,6 +26,14 @@ def write_rcs_file(f, workload, database, iterations, prot_only, args):
         ./identity_map name testing graph-app-accel-fs
         ./apriori_paging_set_process graph-app-accel-fs
         export MALLOC_MMAP_THRESHOLD_=1
+        '''
+    if huge_page == 1:
+        header += '''
+        ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:100
+        ./libhugetlbfs/obj/hugeadm --pool-list
+        export LD_PRELOAD=libhugetlbfs.so
+        export HUGETLB_MORECORE=yes
+        export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
         '''
     header += '''
     cd /home/swapnil/graph_engine/
@@ -60,10 +69,14 @@ def main(argv):
                         default=8)
     parser.add_argument('-t', action="store", dest='tlb_size', type=int,
                         default=8)
-    parser.add_argument('-v', action="store", dest='verbose', type=int,
-                        default=0)
-    parser.add_argument('-p', action="store", dest='prot_only', type=int,
-                        default=0)
+    parser.add_argument('-verbose', action="store_const", const=1,
+                        dest='verbose', default=0)
+    parser.add_argument('-prot-only', action="store_const", dest='prot_only',
+                        const=1, default=0)
+    parser.add_argument('-huge-page', action="store_const", dest='huge_page',
+                        const=1, default=0)
+    parser.add_argument('-mmu-cache', action="store_const", dest='mmu_cache',
+                        const=1, default=0)
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
@@ -78,6 +91,8 @@ def main(argv):
     print "Iterations: " + str(options.iterations)
     print "Unrolled streams: " + str(options.max_unroll)
     print "Accel TLB size: " + str(options.tlb_size)
+    print "MMU Caches: " + str(options.mmu_cache)
+    print "Huge (2 MB) Pages: " + str(options.huge_page)
     print "Debug flags: " + options.debug_flags
     print "Debug Start: " + str(options.debug_start)
     print "Debug Verbosity: " + str(options.verbose)
@@ -117,7 +132,7 @@ def main(argv):
             f = open(os.path.join(logs_dir, 'accel.rcS'), 'w')
             write_rcs_file(f, workload, parameters['database'],\
                             options.iterations, options.prot_only,
-                            parameters['args'])
+                            options.huge_page, parameters['args'])
             f.close()
 
 #             Place a copy in the logs folder
@@ -141,6 +156,7 @@ def main(argv):
                 + logs_dir + ' ' + GEM5_SCRIPT\
                 + ' --max_unroll=' + str(options.max_unroll)\
                 + ' --tlb_size=' + str(options.tlb_size)\
+                + ' --mmu_cache=' + str(options.mmu_cache)\
                 + ' --algorithm=' + workload\
                 + ' --script=' + os.path.join(logs_dir, 'accel.rcS') + '\n'
             f = open(os.path.join(logs_dir, 'runscript'), 'w')

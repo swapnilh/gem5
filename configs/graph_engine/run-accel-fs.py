@@ -75,6 +75,9 @@ SimpleOpts.add_option("--algorithm", type='string',
 SimpleOpts.add_option("--tlb_size", type='int',
                       default=16, help ="accelerator TLB size. Default: 16")
 
+SimpleOpts.add_option("--mmu_cache", type='int',
+                      default=0, help ="mmu-cache for accelerator. Default:0")
+
 # Set the usage message to display
 SimpleOpts.set_usage("usage: %prog [options]")
 
@@ -101,8 +104,16 @@ system.graph_engine = GraphEngine(pio_addr = 0xFFFF8000,
 # Hook up the accelerator
 system.graph_engine.memory_port = system.membus.slave
 system.graph_engine.pio = system.membus.master
+
+if opts.mmu_cache == 1:
+    system.graph_engine.mmucache = MMUCache()
+    system.graph_engine.mmucache.cpu_side = system.graph_engine.tlb.walker.port
+    system.graph_engine.mmucache.mem_side = system.membus.slave
+else:
+    system.graph_engine.tlb.walker.port = system.membus.slave
+
+# Use CPU mmucache
 #system.cpu[0].mmucache.mmubus.slave = system.graph_engine.tlb.walker.port
-system.graph_engine.tlb.walker.port = system.membus.slave
 
 # For workitems to work correctly
 # This will cause the simulator to exit simulation when the first work

@@ -79,7 +79,8 @@ class MySystem(LinuxX86System):
         # Replace these paths with the path to your disk images.
         # The first disk is the root disk. The second could be used for swap
         # or anything else.
-        filepath = '' # Todo: Move to backed up location
+        # Todo: Move to backed up location
+        filepath = '/nobackup/swapnilh/gem5-accelerator/'
         imagepath = filepath + 'ubuntu-16.04-large.img'
 
         self.setDiskImages(imagepath, opts.second_disk)
