@@ -29,6 +29,7 @@ def write_rcs_file(f, workload, database, iterations, prot_only, huge_page,\
         '''
     if huge_page == 1:
         header += '''
+        cd /home/swapnil/
         ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:100
         ./libhugetlbfs/obj/hugeadm --pool-list
         export LD_PRELOAD=libhugetlbfs.so
