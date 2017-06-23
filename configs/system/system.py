@@ -32,6 +32,7 @@ from m5.objects import *
 from m5.util import convert
 from fs_tools import *
 from caches import *
+import os
 
 class MySystem(LinuxX86System):
 
@@ -43,8 +44,7 @@ class MySystem(LinuxX86System):
                           help="Number of CPUs in the system")
 
     SimpleOpts.add_option("--second_disk",
-                          default='/p/multifacet/users/swapnilh/disk_images/'
-                          + 'linux-bigswap2.img',
+                          default='linux-bigswap2.img',
                           help="The second disk image to mount (/dev/hdb)")
 
     def __init__(self, opts, no_kvm=False):
@@ -80,10 +80,10 @@ class MySystem(LinuxX86System):
         # The first disk is the root disk. The second could be used for swap
         # or anything else.
         # Todo: Move to backed up location
-        filepath = '/nobackup/swapnilh/gem5-accelerator/'
-        imagepath = filepath + 'ubuntu-16.04-large.img'
-
-        self.setDiskImages(imagepath, opts.second_disk)
+        filepath = os.getenv('M5_PATH', '/nobackup/swapnilh/gem5-accelerator/')
+        imagepath = os.path.join(filepath, 'ubuntu-16.04-large.img')
+        swap_imagepath = os.path.join(filepath, opts.second_disk)
+        self.setDiskImages(imagepath, swap_imagepath)
 
         # Change this path to point to the kernel you want to use
         self.kernel = filepath + 'x86_64-vmlinux-4.10-accel.smp'
