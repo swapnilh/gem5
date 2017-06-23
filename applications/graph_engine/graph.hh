@@ -27,70 +27,42 @@
  * Authors: Swapnil Haria
  */
 
-#include "graph_application.h"
+#ifndef __ACCEL_GRAPH_HH__
+#define __ACCEL_GRAPH_HH__
 
-class SSSP : public GraphApplication {
+#include <stdint.h>
 
-  private:
-    const NodeId SOURCE = 1;
+typedef uint64_t NodeId;
 
-  public:
-    SSSP (int maxIterations) : GraphApplication(maxIterations)
-        {}
+typedef uint64_t VertexProperty;
 
-    // This function is algo-specific
-    void populate_params() override;
+// Used for nodes with no outgoing edges
+const NodeId INIT_VAL = 0;
 
-    class CompareNode {
-        public:
-            // Returns true if b has higher priority i.e closer to source
-            bool operator()(Vertex a, Vertex b)
-            {
-                return b.property < a.property;
-            }
-    };
+// Used for unsigned ints which underflow to get highest value
+const VertexProperty INF = (VertexProperty)-1;
 
-    // Simple, serial implementation to compare with
-    void exec_on_host () override;
-};
+typedef struct {
+    NodeId id;
+    VertexProperty property;
+} Vertex;
 
-class BFS: public GraphApplication {
+typedef struct {
+    NodeId srcId;
+    NodeId destId;
+    VertexProperty weight;
+} Edge;
 
-  private:
-    const NodeId SOURCE = 1;
+typedef struct {
+    Edge *EdgeTable;
+    NodeId *EdgeIdTable;
+    VertexProperty *VertexPropertyTable;
+    VertexProperty *VTempPropertyTable;
+    VertexProperty *VConstPropertyTable;
+    Vertex *ActiveVertexTable;
+    NodeId ActiveVertexCount;
+    NodeId VertexCount;
+    uint32_t maxIterations;
+} GraphParams;
 
-  public:
-    BFS (int maxIterations) : GraphApplication(maxIterations)
-        {}
-
-    // This function is algo-specific
-    void populate_params() override;
-
-    class CompareNode {
-        public:
-            // Returns true if b has higher priority i.e closer to source
-            bool operator()(Vertex a, Vertex b)
-            {
-                return b.property < a.property;
-            }
-    };
-
-    void exec_on_host () override;
-};
-
-class PageRank: public GraphApplication {
-
-  private:
-    const NodeId SOURCE = 1;
-
-  public:
-    PageRank (int maxIterations) : GraphApplication(maxIterations)
-        {}
-
-    // This function is algo-specific
-    void populate_params() override;
-
-    // Simple, serial implementation to compare with
-    void exec_on_host () override {
-    }
-};
+#endif // __ACCEL_GRAPH_HH__

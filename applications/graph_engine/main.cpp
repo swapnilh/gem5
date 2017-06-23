@@ -1,9 +1,14 @@
 #include <fcntl.h>
+#include <malloc.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <x86intrin.h>
 
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iostream>
+#include <string>
 
 #include "algorithms.h"
 
@@ -11,8 +16,13 @@ void *m5_mem = NULL;
 
 int main(int argc, char *argv[])
 {
+    if (!mallopt(M_MMAP_THRESHOLD, 1)) {
+        printf("MALLOPT: MMAP_THRESHOLD CONFIG FAILED\n");
+        exit(1);
+    }
+    else printf("MALLOPT: MMAP_THRESHOLD CONFIG DONE\n");
 
-    if (argc != 6) {
+    if (argc < 6) {
         std::cout << "Incorrect number of arguments: " << argc << std::endl;
         std::cout << "Usage: " << argv[0] <<
             "</path/to/file> <workload> <num_iterations> <weights>"
@@ -42,6 +52,10 @@ int main(int argc, char *argv[])
     bool printParams = false;
     if (atoi(argv[5]) == 1)
         printParams = true;
+    bool earlyExit = false;
+    if (argc >= 7) {
+        if (atoi(argv[6]) == 1) earlyExit = true;
+    }
 
     int fd;
     uint64_t *device_addr = NULL;
@@ -51,8 +65,9 @@ int main(int argc, char *argv[])
         close(fd);
         return (-1);
     }
+
     device_addr = (uint64_t *)mmap((void*)0x10000000, 32768,
-                    PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0xFFFF8000);
+            PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0xFFFF8000);
     if (device_addr == MAP_FAILED) {
         perror("Can't mmap /dev/mem for device_addr");
         exit(1);
@@ -87,9 +102,28 @@ int main(int argc, char *argv[])
     if (printParams)
         app->print_params();
 
+    app->fill_params();
+    _mm_mfence();
+
+    if (earlyExit) {
+        std::string line;
+        std::ifstream myfile ("/proc/self/smaps");
+        if (myfile.is_open())
+        {
+            while ( getline (myfile,line) )
+            {
+                std::cout << line << "\n";
+            }
+            myfile.close();
+        }
+        return 0;
+    }
+
     #ifdef M5OP
     m5_work_begin(0,0);
+//    sleep(2);
     #endif
+    _mm_mfence();
 
     #ifdef ACCEL
     app->exec_on_accel(device_addr);
@@ -100,7 +134,7 @@ int main(int argc, char *argv[])
     #ifdef M5OP
     m5_work_end(0,0);
     #endif
-
+/*
     if (printParams)
         app->print_params();
 
@@ -114,6 +148,6 @@ int main(int argc, char *argv[])
     if (strcmp(workload, "pagerank"))
         app->verify();
     #endif
-
+*/
     return 0;
 }

@@ -34,13 +34,14 @@
 
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <queue>
 #include <random>
 #include <sstream>
 
-#include "../../src/accel/graph.hh"
+#include "graph.hh"
 
 #ifdef M5OP
 #include "../../util/m5/m5op.h"
@@ -59,7 +60,8 @@
 class GraphApplication {
 
  public:
-    GraphApplication (int maxIterations) : maxIterations(maxIterations)
+    GraphApplication (int maxIterations) : maxIterations(maxIterations),
+        watch(0)
         {}
 
     Edge *EdgeTable;
@@ -84,6 +86,8 @@ class GraphApplication {
 
     VertexProperty *SerialVPropertyTable;
 
+    GraphParams params;
+
     void print_params();
 
     // Note: assumes vertex numbering from 1..N
@@ -91,9 +95,16 @@ class GraphApplication {
     // Taken from GAP BS reader.h
     void read_in_mtx(std::ifstream &in, bool &needs_weights);
 
+    void cache_flush();
+
     void exec_on_accel(uint64_t *device_addr);
 
     void verify();
+
+    void fill_params();
+
+    // Having it on stack causes false sharing conflicts
+    volatile int watch;
 
     virtual void populate_params() = 0;
 

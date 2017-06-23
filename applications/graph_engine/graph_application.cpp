@@ -1,4 +1,5 @@
 #include "graph_application.h"
+#include "util.h"
 
 void
 GraphApplication::print_params(){
@@ -120,6 +121,34 @@ GraphApplication::read_in_mtx(std::ifstream &in, bool &needs_weights) {
     SerialVPropertyTable = (VertexProperty*)malloc((VertexCount+1) *
             sizeof(VertexProperty));
 
+    printf("Sizes in MB\n");
+    printf("EdgeTable:%lu \n EdgeIdTable:%lu \n VertexPropertyTable:%lu \n"
+           " TempPropTable:%lu \n ConstPropTable:%lu \n ActiveVtxTable:%lu \n"
+           " SerialVPropTable:%lu \n Total size:%lu \n\n",
+            (numEdges+1)*sizeof(Edge)/1048576,
+            (VertexCount+1)*sizeof(NodeId)/1048576,
+            (VertexCount+1)*sizeof(VertexProperty)/1048576,
+            (VertexCount+1)*sizeof(VertexProperty)/1048576,
+            (VertexCount+1)*sizeof(VertexProperty)/1048576,
+            (VertexCount+1)*sizeof(Vertex)/1048576,
+            (VertexCount+1)*sizeof(VertexProperty)/1048576,
+            ((numEdges+1)*sizeof(Edge) + (VertexCount+1)*sizeof(NodeId) +
+            (VertexCount+1)*sizeof(VertexProperty) +
+            (VertexCount+1)*sizeof(VertexProperty) +
+            (VertexCount+1)*sizeof(VertexProperty) +
+            (VertexCount+1)*sizeof(Vertex) +
+            (VertexCount+1)*sizeof(VertexProperty))/1048576);
+
+    printf("EdgeTable: VA: %p PA: %p\n EdgeIdTable: VA: %p PA: %p\n"
+            "VertexPropertyTable: VA: %p PA: %p\n"
+            "TempPropTable: VA: %p PA: %p\nConstPropTable: VA: %p PA: %p\n"
+            "ActiveVtxTable: VA: %p PA: %p\nSerialVPropTable: VA: %p PA: %p\n",
+            EdgeTable, va_to_pa(EdgeTable), EdgeIdTable, va_to_pa(EdgeIdTable),
+            VertexPropertyTable, va_to_pa(VertexPropertyTable),
+            VTempPropertyTable, va_to_pa(VTempPropertyTable),
+            VConstPropertyTable, va_to_pa(VConstPropertyTable),
+            ActiveVertexTable, va_to_pa(ActiveVertexTable),
+            SerialVPropertyTable, va_to_pa(SerialVPropertyTable));
     // Needed for check to insert and add to active list
     for (int i=0; i<m; i++) {
         EdgeIdTable[i] = INIT_VAL;
@@ -129,9 +158,9 @@ GraphApplication::read_in_mtx(std::ifstream &in, bool &needs_weights) {
     NodeId u, v;
     VertexProperty w;
     while (std::getline(in, line)) {
-        if (edgeCtr%10000 == 0)
+/*        if (edgeCtr%10000 == 0)
             std::cout << "Read " << edgeCtr << "/" << edges << std::endl;
-
+*/
         std::istringstream edge_stream(line);
         edge_stream >> u;
         // If first occurence, then add it to EdgeIdTable
@@ -156,14 +185,34 @@ GraphApplication::read_in_mtx(std::ifstream &in, bool &needs_weights) {
     return;
 }
 
+/* Separate Function to make sure it happens before
+   cache flush on m5_work_begin() */
 void
-GraphApplication::exec_on_accel(uint64_t *device_addr)
+GraphApplication::fill_params()
 {
-    GraphParams params = {EdgeTable, EdgeIdTable, VertexPropertyTable,
+    params = {EdgeTable, EdgeIdTable, VertexPropertyTable,
         VTempPropertyTable, VConstPropertyTable,
         ActiveVertexTable, ActiveVertexCount,
         VertexCount, maxIterations};
+}
+
+void
+GraphApplication::cache_flush()
+{
+    // Total cache size is slightly less than 5 MB
+    unsigned int size = 8*1024*1024;
+    long *region = (long*) malloc(size);
+    memset(region, 0, size);
+    printf("Physical Bytes Flushed: %u\n", size);
+}
+
+void
+GraphApplication::exec_on_accel(uint64_t *device_addr)
+{
+    //volatile int watch = 0;
+    volatile int* watch_addr = &watch;
     volatile GraphParams* params_addr = &params;
+    cache_flush();
     asm volatile (
             "mov %0, (%1)\n"
             :
@@ -172,6 +221,13 @@ GraphApplication::exec_on_accel(uint64_t *device_addr)
             );
     printf("Entering spin loop\n");
     while (*device_addr != 12) {
+/*
+        std::ifstream f("/proc/self/smaps");
+        if (f.is_open())
+            std::cout << f.rdbuf();
+        else
+            std::cout << "Failed" << std::endl;
+*/
         usleep(1);
     }; // spin
 }
