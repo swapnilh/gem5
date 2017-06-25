@@ -86,7 +86,7 @@ class MySystem(LinuxX86System):
         self.setDiskImages(imagepath, swap_imagepath)
 
         # Change this path to point to the kernel you want to use
-        self.kernel = filepath + 'x86_64-vmlinux-4.10-accel.smp'
+        self.kernel = os.path.join(filepath, 'x86_64-vmlinux-4.10-accel.smp')
 
         # Options specified on the kernel command line
         boot_options = ['earlyprintk=ttyS0', 'console=ttyS0', 'lpj=7999923',

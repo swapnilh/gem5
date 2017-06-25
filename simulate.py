@@ -6,11 +6,16 @@ import sys
 import time
 import json
 import shutil
+import shlex
+from threading import Timer
 
 GEM5_DIR = '/nobackup/swapnilh/gem5-accelerator/'
 OUT_DIR = '/nobackup/swapnilh/gem5-accelerator/logs/'
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
 DONT_RUN = ['graph_test.mtx']
+
+def setup_env():
+    os.environ['M5_PATH'] = GEM5_DIR
 
 def write_rcs_file(f, workload, database, iterations, prot_only, huge_page,\
                     args):
@@ -53,10 +58,26 @@ sleep 10
 '''
     f.write(footer)
 
-def execute(cmd):
-    p = subprocess.call(cmd, shell=True)
+def kill_proc(proc, op_dir):
+    proc.kill()
+    print 'proc killed'
+    open(os.path.join(op_dir, 'killed.txt'), 'a').close()
+
+def execute(cmd, op_dir, timeout_sec):
+    proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+#    kill_proc = lambda p: p.kill()
+    print 'Here with timeout:' + str(timeout_sec)
+    timer = Timer(timeout_sec, kill_proc, [proc, op_dir])
+    try:
+        timer.start()
+        stdout, stderr = proc.communicate()
+    finally:
+        timer.cancel()
 
 def main(argv):
+    setup_env()
+
     parser = argparse.ArgumentParser(description='Runscript for gem5-accel')
     parser.add_argument('-w', action="append", dest='workloads_list',
                         default=[])
@@ -82,6 +103,9 @@ def main(argv):
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
                         default=0)
+    parser.add_argument('-timeout', action="store", dest='timeout', type=int,
+                        default=14400)
+
     options = parser.parse_args()
 
     print "Settings if custom values passed"
@@ -94,6 +118,7 @@ def main(argv):
     print "Accel TLB size: " + str(options.tlb_size)
     print "MMU Caches: " + str(options.mmu_cache)
     print "Huge (2 MB) Pages: " + str(options.huge_page)
+    print "Timeout: " + str(options.timeout)
     print "Debug flags: " + options.debug_flags
     print "Debug Start: " + str(options.debug_start)
     print "Debug Verbosity: " + str(options.verbose)
@@ -153,7 +178,7 @@ def main(argv):
                 binary = './build/X86/gem5.opt '
 
             # Create the gem5 run command
-            run_cmd = 'time ' + binary + debug_str + ' -d '\
+            run_cmd = binary + debug_str + ' -d '\
                 + logs_dir + ' ' + GEM5_SCRIPT\
                 + ' --max_unroll=' + str(options.max_unroll)\
                 + ' --tlb_size=' + str(options.tlb_size)\
@@ -164,7 +189,7 @@ def main(argv):
             f.write(run_cmd)
             f.close
             print(run_cmd)
-            execute(run_cmd)
+            execute(run_cmd, logs_dir, options.timeout)
 
 if __name__=="__main__":
     main(sys.argv[1:])
