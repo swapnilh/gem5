@@ -20,8 +20,8 @@
     },
     {   
         "database" : "ljournal-2008-sorted.mtx",
-        "args"     : "0 0 ",  
-        "iters"    : "10 ",  
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
         "time"     : ""
     }
     ],
