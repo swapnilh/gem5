@@ -86,7 +86,7 @@ namespace X86ISA
                 Ready,
                 Waiting,
                 // Long mode
-                LongPML4, LongPDP, LongPD, LongPTE,
+                LongPML4, LongPDP, LongPD, LongPTE, LongPV,
                 // PAE legacy mode
                 PAEPDP, PAEPD, PAEPTE,
                 // Non PAE legacy mode with and without PSE

@@ -305,7 +305,12 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             break;
         }
         entry.noExec = pte.nx;
-        nextState = LongPDP;
+        if (pte.format && walker->forAccel) {
+            DPRINTF(PageTableWalker,
+                    "Format bit set! Next entry is Permission Vector!\n");
+            nextState = LongPV;
+        }
+        else nextState = LongPDP;
         break;
       case LongPDP:
         DPRINTF(PageTableWalker,
@@ -320,7 +325,12 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             fault = pageFault(pte.p);
             break;
         }
-        nextState = LongPD;
+        if (pte.format) {
+            DPRINTF(PageTableWalker,
+                    "Format bit set! Next entry is Permission Vector!\n");
+            nextState = LongPV;
+        }
+        else nextState = LongPD;
         break;
       case LongPD:
         DPRINTF(PageTableWalker,
@@ -334,7 +344,13 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             fault = pageFault(pte.p);
             break;
         }
-        if (!pte.ps) {
+
+        if (pte.format) {
+            DPRINTF(PageTableWalker,
+                    "Format bit set! Next entry is Permission Vector!\n");
+            nextState = LongPV;
+        }
+        else if (!pte.ps) {
             // 4 KB page
             entry.logBytes = 12;
             nextRead =
@@ -353,6 +369,14 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             doEndWalk = true;
             break;
         }
+      case LongPV:
+        DPRINTF(PageTableWalker,
+                "Got long mode Permission entry %#016x.\n", (uint64_t)pte);
+        /* TODO: Add actual permission checks */
+        doWrite = 1;
+        doTLBInsert = false;
+        doEndWalk = true;
+        break;
       case LongPTE:
         DPRINTF(PageTableWalker,
                 "Got long mode PTE entry %#016x.\n", (uint64_t)pte);
