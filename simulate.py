@@ -64,10 +64,7 @@ def kill_proc(proc, op_dir):
     open(os.path.join(op_dir, 'killed.txt'), 'a').close()
 
 def execute(cmd, op_dir, timeout_sec):
-    proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
-#    kill_proc = lambda p: p.kill()
-    print 'Here with timeout:' + str(timeout_sec)
+    proc = subprocess.Popen(shlex.split(cmd))
     timer = Timer(timeout_sec, kill_proc, [proc, op_dir])
     try:
         timer.start()
