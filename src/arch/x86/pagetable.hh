@@ -83,7 +83,8 @@ namespace X86ISA
     BitUnion64(PageTableEntry)
         Bitfield<63> nx;
         Bitfield<51, 12> base;
-        Bitfield<11, 9> avl;
+        Bitfield<11, 10> avl;
+        Bitfield<9> format;
         Bitfield<8> g;
         Bitfield<7> ps;
         Bitfield<6> d;
@@ -94,7 +95,6 @@ namespace X86ISA
         Bitfield<1> w;
         Bitfield<0> p;
     EndBitUnion(PageTableEntry)
-
 
     struct TlbEntry : public Serializable
     {
