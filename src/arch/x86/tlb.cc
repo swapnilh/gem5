@@ -274,6 +274,11 @@ TLB::translate(RequestPtr req, ThreadContext *tc, Translation *translation,
 
     delayedResponse = false;
 
+    /* TODO: Would have to remove this once permissions TLB is implemented */
+    if (forAccel && req->hasPaddr()) {
+        return NoFault;
+    }
+
     // If this is true, we're dealing with a request to a non-memory address
     // space.
     if (seg == SEGMENT_REG_MS) {
