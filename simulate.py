@@ -86,7 +86,7 @@ def main(argv):
     parser.add_argument('-o', action="store", dest='out_dir',
                         default='logs-'+time.strftime("%d-%b"))
     parser.add_argument('-i', action="store", dest='iterations', type=int,
-                        default=10)
+                        default=0)
     parser.add_argument('-u', action="store", dest='max_unroll', type=int,
                         default=8)
     parser.add_argument('-t', action="store", dest='tlb_size', type=int,
@@ -155,9 +155,13 @@ def main(argv):
                 os.makedirs(logs_dir)
 
             # Create the rcS file first
+            iters = options.iterations
+            if iters == 0:
+                iters = parameters['iters']
+
             f = open(os.path.join(logs_dir, 'accel.rcS'), 'w')
             write_rcs_file(f, workload, parameters['database'],\
-                            options.iterations, options.prot_only,
+                            iters, options.prot_only,
                             options.huge_page, parameters['args'])
             f.close()
 
