@@ -3,21 +3,25 @@
     {   
         "database" : "graph_test.mtx",
         "args"     : "1 0 ",  
+        "iters"    : "10 ",  
         "time"     : ""
     },
     {   
         "database" : "flickr-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "10 ",  
         "time"     : ""
     },
     {   
         "database" : "wikipedia-20070206-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "10 ",  
         "time"     : ""
     },
     {   
         "database" : "ljournal-2008-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "10 ",  
         "time"     : ""
     }
     ],
@@ -25,21 +29,25 @@
     {   
         "database" : "graph_test.mtx",
         "args"     : "1 0 ",  
+        "iters"    : "5 ",  
         "time"     : ""
     },
     {   
         "database" : "flickr-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "5 ",  
         "time"     : ""
     },
     {   
         "database" : "wikipedia-20070206-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "5 ",  
         "time"     : ""
     },
     {   
         "database" : "ljournal-2008-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "5 ",  
         "time"     : ""
     }
     ],
@@ -47,21 +55,25 @@
     {   
         "database" : "graph_test.mtx",
         "args"     : "1 0 ",  
+        "iters"    : "2 ",  
         "time"     : ""
     },
     {   
         "database" : "flickr-sorted.mtx",
         "args"     : "0 0 ", 
+        "iters"    : "2 ",  
         "time"     : ""
     },
     {   
         "database" : "wikipedia-20070206-sorted.mtx",
         "args"     : "0 0 ", 
+        "iters"    : "2 ",  
         "time"     : ""
     },
     {   
         "database" : "ljournal-2008-sorted.mtx",
         "args"     : "0 0 ",  
+        "iters"    : "2 ",  
         "time"     : ""
     }
     ],
