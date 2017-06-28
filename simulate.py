@@ -17,13 +17,13 @@ DONT_RUN = ['graph_test.mtx']
 def setup_env():
     os.environ['M5_PATH'] = GEM5_DIR
 
-def write_rcs_file(f, workload, database, iterations, prot_only, huge_page,\
+def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
                     args):
     header = '''#!/bin/bash
     echo 2 > /proc/sys/kernel/randomize_va_space
     echo never > /sys/kernel/mm/transparent_hugepage/enabled
     '''
-    if prot_only == 1:
+    if variant >= 1:
         header += '''
         cd /home/swapnil/identity_mapping/
         make clean
@@ -90,23 +90,25 @@ def main(argv):
                         default=8)
     parser.add_argument('-verbose', action="store_const", const=1,
                         dest='verbose', default=0)
-    parser.add_argument('-prot-only', action="store_const", dest='prot_only',
-                        const=1, default=0)
-    parser.add_argument('-huge-page', action="store_const", dest='huge_page',
-                        const=1, default=0)
-    parser.add_argument('-mmu-cache', action="store_const", dest='mmu_cache',
-                        const=1, default=0)
+    parser.add_argument('-v', action="store", dest='variant', type=int,
+                        default=0, help='Variant 0=baseline, 1=prot 2=ideal')
+    parser.add_argument('-huge-page', action="store", dest='huge_page',
+                        type=int, default=0)
+    parser.add_argument('-mmu-cache', action="store", dest='mmu_cache',
+                        type=int, default=0)
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
                         default=0)
     parser.add_argument('-timeout', action="store", dest='timeout', type=int,
                         default=14400)
+    parser.add_argument('-docker', action="store_const", const=1,
+                        dest='docker', default=0)
 
     options = parser.parse_args()
 
     print "Settings if custom values passed"
-    print "Protection-Only: " + str(options.prot_only)
+    print "Variant: " + str(options.variant)
     print "Workloads: " + str(options.workloads_list)
     print "Databases: " + str(options.databases_list)
     print "Output Dir: " +  OUT_DIR + options.out_dir
@@ -119,6 +121,7 @@ def main(argv):
     print "Debug flags: " + options.debug_flags
     print "Debug Start: " + str(options.debug_start)
     print "Debug Verbosity: " + str(options.verbose)
+    print "Running in Docker: " + str(options.docker)
 
     os.chdir(GEM5_DIR)
 
@@ -146,8 +149,8 @@ def main(argv):
                                     parameters['database'])[0] + '_tlb'
                                     + str(options.tlb_size) + '_unroll'
                                     + str(options.max_unroll))
-            if options.prot_only == 1:
-                logs_dir += '_prot'
+
+            logs_dir += '_v' + str(options.variant)
             if not os.path.exists(logs_dir):
                 os.makedirs(logs_dir)
 
@@ -158,7 +161,7 @@ def main(argv):
 
             f = open(os.path.join(logs_dir, 'accel.rcS'), 'w')
             write_rcs_file(f, workload, parameters['database'],\
-                            iters, options.prot_only,
+                            iters, options.variant,
                             options.huge_page, parameters['args'])
             f.close()
 
@@ -173,10 +176,19 @@ def main(argv):
                 if options.verbose == 0:
                     debug_str += ' --debug-file=accel.log'
 
-            if options.prot_only == 1:
-                binary = './build/X86-prot/gem5.opt '
-            else:
+            if options.docker == 1:
                 binary = './build/X86/gem5.opt '
+            else:
+                if options.variant == 0:
+                    binary = './build/X86/gem5.opt '
+                elif options.variant == 1:
+                    binary = './build/X86-prot/gem5.opt '
+                elif options.variant == 2:
+                    binary = './build/X86-ideal/gem5.opt '
+                else:
+                    print 'Unsupported Variant. Choose from 0-2!'
+                    print 'Variant 0=baseline, 1=prot 2=ideal'
+                    sys.exit()
 
             # Create the gem5 run command
             run_cmd = binary + debug_str + ' -d '\
