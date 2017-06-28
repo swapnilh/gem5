@@ -734,18 +734,6 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
     assert(split_addr <= addr || split_addr - addr < block_size);
 
     if (split_addr > addr) {
-        RequestPtr req1, req2;
-        req->splitOnVaddr(split_addr, req1, req2);
-
-        WholeTranslationState *state =
-            new WholeTranslationState(req, req1, req2, data, NULL, mode);
-        DataTranslation<GraphEngine *> *trans1 =
-            new DataTranslation<GraphEngine *>(this, state, 0);
-        DataTranslation<GraphEngine *> *trans2 =
-            new DataTranslation<GraphEngine *>(this, state, 1);
-        tlb->translateTiming(req1, context, trans1, mode);
-        tlb->translateTiming(req2, context, trans2, mode);
-
         if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
             //Launch memoryAccess speculatively
             RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
@@ -765,13 +753,20 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
             sendSplitData(spec_req1, spec_req2, spec_req,
                     data, mode == BaseTLB::Read);
         }
-    } else {
-        WholeTranslationState *state =
-            new WholeTranslationState(req, data, NULL, mode);
-        DataTranslation<GraphEngine*> *translation
-            = new DataTranslation<GraphEngine*>(this, state);
-        tlb->translateTiming(req, context, translation, mode);
+        else {
+            RequestPtr req1, req2;
+            req->splitOnVaddr(split_addr, req1, req2);
 
+            WholeTranslationState *state =
+                new WholeTranslationState(req, req1, req2, data, NULL, mode);
+            DataTranslation<GraphEngine *> *trans1 =
+                new DataTranslation<GraphEngine *>(this, state, 0);
+            DataTranslation<GraphEngine *> *trans2 =
+                new DataTranslation<GraphEngine *>(this, state, 1);
+            tlb->translateTiming(req1, context, trans1, mode);
+            tlb->translateTiming(req2, context, trans2, mode);
+        }
+    } else {
         if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
             //Launch memoryAccess speculatively
             RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
@@ -781,6 +776,15 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
             spec_req->setFlags(Request::UNCACHEABLE);
             spec_req->setPaddr(addr);
             sendData(spec_req, data, mode == BaseTLB::Read);
+        }
+        else {
+
+            WholeTranslationState *state =
+                new WholeTranslationState(req, data, NULL, mode);
+            DataTranslation<GraphEngine*> *translation
+                = new DataTranslation<GraphEngine*>(this, state);
+            tlb->translateTiming(req, context, translation, mode);
+
         }
     }
 }
@@ -984,12 +988,12 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
     }
 
     // This function will be called again on finishTranslation
-    if (!it->second.translationDone) {
+/*    if (!it->second.translationDone) {
         DPRINTF(AccelVerbose, "Translation not yet done for addr:%#x\n",
                pkt->req->getVaddr());
         return;
     }
-
+*/
     DPRINTF(AccelVerbose, "Access (data+translation) finished for addr:%#x\n",
            pkt->req->getVaddr());
 
@@ -1022,12 +1026,12 @@ GraphEngine::recvApplyLoop(PacketPtr pkt)
     }
 
     // This function will be called again on finishTranslation
-    if (!it->second.translationDone) {
+/*    if (!it->second.translationDone) {
         DPRINTF(AccelVerbose, "Translation not yet done for address:%#x\n",
                pkt->req->getVaddr());
         return;
     }
-
+*/
     DPRINTF(AccelVerbose, "Access (data+translation) finished for addr:%#x\n",
            pkt->req->getVaddr());
 
