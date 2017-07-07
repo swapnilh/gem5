@@ -12,7 +12,8 @@ from threading import Timer
 GEM5_DIR = '/nobackup/swapnilh/gem5-accelerator/'
 OUT_DIR = '/nobackup/swapnilh/gem5-accelerator/logs/'
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
-DONT_RUN = ['graph_test.mtx']
+DONT_RUN = ['graph_test.mtx', 'flickr-sorted.mtx',
+            'wikipedia-20070206-sorted.mtx']
 
 def setup_env():
     os.environ['M5_PATH'] = GEM5_DIR
@@ -28,7 +29,14 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
         cd /home/swapnil/identity_mapping/
         make clean
         make
-        ./identity_map name testing graph-app-accel-fs
+        '''
+        if variant == 1:
+            header += '''./identity_map name testing graph-app-accel-fs
+            '''
+        elif variant == 2:
+            header += '''./identity_map name stable graph-app-accel-fs
+            '''
+        header += '''
         ./apriori_paging_set_process graph-app-accel-fs
         export MALLOC_MMAP_THRESHOLD_=1
         '''
@@ -101,7 +109,7 @@ def main(argv):
     parser.add_argument('-debug-start', action="store", dest='debug_start',
                         default=0)
     parser.add_argument('-timeout', action="store", dest='timeout', type=int,
-                        default=14400)
+                        default=36000)
     parser.add_argument('-docker', action="store_const", const=1,
                         dest='docker', default=0)
 

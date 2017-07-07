@@ -23,6 +23,18 @@
         "args"     : "0 0 ",
         "iters"    : "5 ",
         "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s24.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
+        "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s25.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
+        "time"     : ""
     }
     ],
     "SSSP": [
@@ -48,6 +60,18 @@
         "database" : "ljournal-2008-sorted.mtx",
         "args"     : "0 0 ",  
         "iters"    : "5 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s24.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
+        "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s25.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
         "time"     : ""
     }
     ],
@@ -75,28 +99,56 @@
         "args"     : "0 0 ",  
         "iters"    : "2 ",  
         "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s24.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "2 ",
+        "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s25.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "2 ",
+        "time"     : ""
     }
     ],
     "TriangleCounting": [
     {   
         "database" : "graph_test.mtx",
         "args"     : "1 0 ",  
+        "iters"    : "5 ",
         "time"     : ""
     },
     {   
         "database" : "flickr-sorted.mtx",
         "args"     : "0 0 ", 
+        "iters"    : "5 ",
         "time"     : ""
     },
     {   
         "database" : "wikipedia-20070206-sorted.mtx",
         "args"     : "0 0 ", 
+        "iters"    : "5 ",
         "time"     : ""
     },
     {   
         "database" : "ljournal-2008-sorted.mtx",
         "args"     : "0 0 ",  
         "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s24.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
+        "time"     : ""
+    },
+    {   
+        "database" : "synthetic-s25.mtx0",
+        "args"     : "0 0 ",
+        "iters"    : "5 ",
+        "time"     : ""
     }
+
     ]
 }
