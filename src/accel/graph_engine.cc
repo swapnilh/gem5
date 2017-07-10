@@ -86,8 +86,8 @@ GraphEngine::read(PacketPtr pkt)
     assert(pkt->getAddr() >= pioAddr);
     assert(pkt->getAddr() < pioAddr + pioSize);
 
-    DPRINTF(Accel, "Got a read request %s", pkt->print());
-    DPRINTF(Accel, "Data %#x\n", pkt->get<uint64_t>());
+    DPRINTF(AccelVerbose, "Got a read request %s", pkt->print());
+    DPRINTF(AccelVerbose, "Data %#x\n", pkt->get<uint64_t>());
 
     if (status == Returning) {
         pkt->set(12);
