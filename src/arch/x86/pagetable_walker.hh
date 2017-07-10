@@ -97,6 +97,7 @@ namespace X86ISA
             Walker *walker;
             ThreadContext *tc;
             RequestPtr req;
+            int levelsWalked;
             State state;
             State nextState;
             int dataSize;
@@ -115,8 +116,8 @@ namespace X86ISA
           public:
             WalkerState(Walker * _walker, BaseTLB::Translation *_translation,
                     RequestPtr _req, bool _isFunctional = false) :
-                        walker(_walker), req(_req), state(Ready),
-                        nextState(Ready), inflight(0),
+                        walker(_walker), req(_req), levelsWalked(0),
+                        state(Ready), nextState(Ready), inflight(0),
                         translation(_translation),
                         functional(_isFunctional), timing(false),
                         retrying(false), started(false)
@@ -171,7 +172,11 @@ namespace X86ISA
         MasterID masterId;
 
         // Getting some statistics
+        // Number of inflight walks
         Stats::Vector concurrentWalksPdf;
+
+        // Number of levels walked per translation
+        Stats::Vector levelsWalkedPdf;
 
         // Needed for accelerators
         bool forAccel;

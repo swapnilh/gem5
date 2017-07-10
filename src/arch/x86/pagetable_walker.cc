@@ -616,6 +616,9 @@ Walker::WalkerState::recvPacket(PacketPtr pkt)
         // should not have a pending read it we also had one outstanding
         assert(!read);
 
+        // One more level walked
+        levelsWalked++;
+
         // @todo someone should pay for this
         pkt->headerDelay = pkt->payloadDelay = 0;
 
@@ -636,6 +639,7 @@ Walker::WalkerState::recvPacket(PacketPtr pkt)
     if (inflight == 0 && read == NULL && writes.size() == 0) {
         state = Ready;
         nextState = Waiting;
+        walker->levelsWalkedPdf[levelsWalked]++;
         if (timingFault == NoFault) {
             /*
              * Finish the translation. Now that we know the right entry is
@@ -739,7 +743,12 @@ Walker::regStats()
     concurrentWalksPdf
         .init(16) // TODO FIXME
         .name(name() + ".concurrentWalksPdf")
-        .desc("How many concurrent walks when a new one starts");
+        .desc("Outstanding walks when a new one starts");
+
+    levelsWalkedPdf
+        .init(5)
+        .name(name() + ".levelsWalkedPdf")
+        .desc("Levels of page table traversed for each translation");
 }
 
 /* end namespace X86ISA */ }
