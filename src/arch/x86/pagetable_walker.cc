@@ -351,6 +351,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
         }
         entry.noExec = pte.nx;
         if (pte.format && walker->forAccel) {
+            warn_once("Format bit set for PML4\n");
             DPRINTF(PageTableWalker,
                     "Format bit set! Next entry is Permission Vector!\n");
             nextState = LongPV;
@@ -372,7 +373,8 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             fault = pageFault(pte.p);
             break;
         }
-        if (pte.format) {
+        if (pte.format && walker->forAccel) {
+            warn_once("Format bit set for PDP\n");
             DPRINTF(PageTableWalker,
                     "Format bit set! Next entry is Permission Vector!\n");
             nextState = LongPV;
@@ -394,7 +396,8 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             break;
         }
 
-        if (pte.format) {
+        if (pte.format && walker->forAccel) {
+            warn_once("Format bit set for PD\n");
             DPRINTF(PageTableWalker,
                     "Format bit set! Next entry is Permission Vector!\n");
             nextState = LongPV;
@@ -631,6 +634,8 @@ Walker::WalkerState::setupWalk(Addr vaddr)
         cr3 = tc->readMiscRegNoEffect(MISCREG_CR3);
     }
     else {
+        DPRINTF(PageTableWalker,
+                "Accel! Caching cr3!\n");
         if (walker->cr3 == 0) {
             walker->cr3 = tc->readMiscRegNoEffect(MISCREG_CR3);
         }
@@ -673,7 +678,7 @@ Walker::WalkerState::setupWalk(Addr vaddr)
     entry.vaddr = vaddr;
 
     Request::Flags flags = Request::PHYSICAL;
-    DPRINTF(PageTableWalker, "cr3 is %#x\n", cr3);
+    DPRINTF(PageTableWalker, "Addr:%#x cr3 is %#x\n", vaddr, cr3);
     if (cr3.pcd)
         flags.set(Request::UNCACHEABLE);
     RequestPtr request = new Request(topAddr, dataSize, flags,
@@ -719,19 +724,27 @@ Walker::WalkerState::recvPacket(PacketPtr pkt)
         walker->levelsWalkedPdf[levelsWalked]++;
         walker->walksCompleted++;
         if (timingFault == NoFault) {
-            /*
-             * Finish the translation. Now that we know the right entry is
-             * in the TLB, this should work with no memory accesses.
-             * There could be new faults unrelated to the table walk like
-             * permissions violations, so we'll need the return value as
-             * well.
-             */
-            bool delayedResponse;
-            Fault fault = walker->tlb->translate(req, tc, NULL, mode,
-                                                 delayedResponse, true);
-            assert(!delayedResponse);
-            // Let the CPU continue.
-            translation->finish(fault, req, tc, mode);
+            if (!walker->forAccel) {
+                /*
+                 * Finish the translation. Now that we know the right entry is
+                 * in the TLB, this should work with no memory accesses.
+                 * There could be new faults unrelated to the table walk like
+                 * permissions violations, so we'll need the return value as
+                 * well.
+                 */
+                bool delayedResponse;
+                Fault fault = walker->tlb->translate(req, tc, NULL, mode,
+                        delayedResponse, true);
+                assert(!delayedResponse);
+                // Let the CPU continue.
+                translation->finish(fault, req, tc, mode);
+            }
+            /* Cannot check the TLB as we are not putting anything in
+               there yet TODO */
+            else {
+                req->setPaddr(req->getVaddr());
+                translation->finish(NoFault, req, tc, mode);
+            }
         } else {
             // There was a fault during the walk. Let the CPU know.
             translation->finish(timingFault, req, tc, mode);
