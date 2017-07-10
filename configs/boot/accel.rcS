@@ -1,0 +1,11 @@
+
+#!/bin/bash
+cd /home/swapnil/graph_engine/
+make clean
+make
+./graph-app-accel-fs /home/swapnil/graph_engine/data/ljournal-2008-sorted.mtx BFS 10 0 0 
+
+sync
+sleep 10
+/sbin/m5 exit
+

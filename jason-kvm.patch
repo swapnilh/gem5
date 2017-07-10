@@ -1,0 +1,971 @@
+From 6cbc253beea77dcba410851b2ad46b9ac3b8d65d Mon Sep 17 00:00:00 2001
+From: Jason Lowe-Power <jason@lowepower.com>
+Date: Mon, 6 Mar 2017 11:06:40 -0600
+Subject: [PATCH] Imported patch from reviewboard for KVM.
+
+See http://reviews.gem5.org/r/2613/
+
+Added additional Host CPU type check on x86 platforms to do platform dependent code for sysenter/syscall.
+
+This restores functionality for AMD platforms with rb2557.
+
+Change-Id: I9c493ff3cbec0648c9289b8c6b40eddb0108c0cf
+---
+ src/arch/x86/process.cc   | 314 +++++++++++++++++++++++-----------------------
+ src/arch/x86/regs/misc.hh |  44 ++-----
+ src/arch/x86/system.cc    | 147 +++++++---------------
+ src/arch/x86/system.hh    |   3 -
+ src/arch/x86/utility.cc   |  87 +++++++++++++
+ src/arch/x86/utility.hh   |  81 ++++++++++++
+ src/cpu/kvm/x86_cpu.cc    |  13 +-
+ 7 files changed, 380 insertions(+), 309 deletions(-)
+
+diff --git a/src/arch/x86/process.cc b/src/arch/x86/process.cc
+index d7a0571518..8af5082d8d 100644
+--- a/src/arch/x86/process.cc
++++ b/src/arch/x86/process.cc
+@@ -52,6 +52,7 @@
+ #include "arch/x86/regs/segment.hh"
+ #include "arch/x86/system.hh"
+ #include "arch/x86/types.hh"
++#include "arch/x86/utility.hh"
+ #include "base/loader/elf_object.hh"
+ #include "base/loader/object_file.hh"
+ #include "base/misc.hh"
+@@ -69,6 +70,10 @@
+ using namespace std;
+ using namespace X86ISA;
+ 
++
++
++static int isIntel = isIntelCPU();
++
+ static const int ArgumentReg[] = {
+     INTREG_RDI,
+     INTREG_RSI,
+@@ -176,6 +181,7 @@ X86Process::getDesc(int callnum)
+     return &syscallDescs[callnum];
+ }
+ 
++
+ void
+ X86_64Process::initState()
+ {
+@@ -213,232 +219,224 @@ X86_64Process::initState()
+                             (uint8_t *)(&nullDescriptor), 8);
+         numGDTEntries++;
+ 
+-        SegDescriptor initDesc = 0;
+-        initDesc.type.codeOrData = 0; // code or data type
+-        initDesc.type.c = 0;          // conforming
+-        initDesc.type.r = 1;          // readable
+-        initDesc.dpl = 0;             // privilege
+-        initDesc.p = 1;               // present
+-        initDesc.l = 1;               // longmode - 64 bit
+-        initDesc.d = 0;               // operand size
+-        initDesc.g = 1;               // granularity
+-        initDesc.s = 1;               // system segment
+-        initDesc.limitHigh = 0xFFFF;
+-        initDesc.limitLow = 0xF;
+-        initDesc.baseHigh = 0x0;
+-        initDesc.baseLow = 0x0;
+-
+-        //64 bit code segment
+-        SegDescriptor csLowPLDesc = initDesc;
+-        csLowPLDesc.type.codeOrData = 1;
+-        csLowPLDesc.dpl = 0;
+-        uint64_t csLowPLDescVal = csLowPLDesc;
+-        physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
+-                            (uint8_t *)(&csLowPLDescVal), 8);
++        SegDescriptor dsDesc = dataSegDesc();
++        SegSelector ds = 0;
++        SegDescriptor csDesc = codeSegDesc64();
++        SegSelector cs = 0;
++        uint64_t dsDescVal;
++        uint64_t csDescVal;
+ 
+-        numGDTEntries++;
++        if (isIntel){
++                // 64 bit data segment, DPL 3
++                dsDesc.dpl = 3;
++                dsDescVal = dsDesc;
++                physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
++                             (uint8_t *)(&dsDescVal), 8);
+ 
+-        SegSelector csLowPL = 0;
+-        csLowPL.si = numGDTEntries - 1;
+-        csLowPL.rpl = 0;
++                ds.si = numGDTEntries;
++                ds.rpl = 3;
+ 
+-        //64 bit data segment
+-        SegDescriptor dsLowPLDesc = initDesc;
+-        dsLowPLDesc.type.codeOrData = 0;
+-        dsLowPLDesc.dpl = 0;
+-        uint64_t dsLowPLDescVal = dsLowPLDesc;
+-        physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
+-                            (uint8_t *)(&dsLowPLDescVal), 8);
++                numGDTEntries++;
+ 
+-        numGDTEntries++;
+ 
+-        SegSelector dsLowPL = 0;
+-        dsLowPL.si = numGDTEntries - 1;
+-        dsLowPL.rpl = 0;
++                // 64 bit code segment, DPL 3
++                csDesc.dpl = 3;
++                csDescVal = csDesc;
++                physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
++                                    (uint8_t *)(&csDescVal), 8);
++
++                cs.si = numGDTEntries;
++                cs.rpl = 3;
+ 
+-        //64 bit data segment
+-        SegDescriptor dsDesc = initDesc;
+-        dsDesc.type.codeOrData = 0;
+-        dsDesc.dpl = 3;
+-        uint64_t dsDescVal = dsDesc;
++                numGDTEntries++;
++        }
++
++        // 64 bit code segment
++        SegDescriptor csSysDesc = codeSegDesc64();
++        uint64_t csSysDescVal = csSysDesc;
+         physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
+-                            (uint8_t *)(&dsDescVal), 8);
++                            (uint8_t *)(&csSysDescVal), 8);
++
++        SegSelector csSys = 0;
++        csSys.si = numGDTEntries;
+ 
+         numGDTEntries++;
+ 
+-        SegSelector ds = 0;
+-        ds.si = numGDTEntries - 1;
+-        ds.rpl = 3;
+-
+-        //64 bit code segment
+-        SegDescriptor csDesc = initDesc;
+-        csDesc.type.codeOrData = 1;
+-        csDesc.dpl = 3;
+-        uint64_t csDescVal = csDesc;
++        // 64 bit data segment
++        SegDescriptor dsSysDesc = dataSegDesc();
++        uint64_t dsSysDescVal = dsSysDesc;
+         physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
+-                            (uint8_t *)(&csDescVal), 8);
++                            (uint8_t *)(&dsSysDescVal), 8);
+ 
++        SegSelector dsSys = 0;
++        dsSys.si = numGDTEntries;
++        dsSys.rpl = 0;
+         numGDTEntries++;
+ 
+-        SegSelector cs = 0;
+-        cs.si = numGDTEntries - 1;
+-        cs.rpl = 3;
++
++
++        if (!isIntel){
++                // 64 bit data segment, DPL 3
++                dsDesc.dpl = 3;
++                dsDescVal = dsDesc;
++                physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
++                             (uint8_t *)(&dsDescVal), 8);
++
++                ds.si = numGDTEntries;
++                ds.rpl = 3;
++
++                numGDTEntries++;
++
++                // 64 bit code segment, DPL 3
++                csDesc.dpl = 3;
++                csDescVal = csDesc;
++                physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
++                                    (uint8_t *)(&csDescVal), 8);
++
++                cs.si = numGDTEntries;
++                cs.rpl = 3;
++
++                numGDTEntries++;
++        }
+ 
+         SegSelector scall = 0;
+-        scall.si = csLowPL.si;
++        scall.si = csSys.si;
+         scall.rpl = 0;
+ 
+         SegSelector sret = 0;
+-        sret.si = dsLowPL.si;
++        sret.si = dsSys.si;
+         sret.rpl = 3;
+ 
++        uint64_t tss_base_addr = TSSVirtAddr;
++        uint64_t tss_limit = 0xFFFFFFFF;
++
+         /* In long mode the TSS has been extended to 16 Bytes */
+-        TSSlow TSSDescLow = 0;
+-        TSSDescLow.type = 0xB;
+-        TSSDescLow.dpl = 0; // Privelege level 0
+-        TSSDescLow.p = 1; // Present
+-        TSSDescLow.g = 1; // Page granularity
+-        TSSDescLow.limitHigh = 0xF;
+-        TSSDescLow.limitLow = 0xFFFF;
+-        TSSDescLow.baseLow = bits(TSSVirtAddr, 23, 0);
+-        TSSDescLow.baseHigh = bits(TSSVirtAddr, 31, 24);
+-
+-        TSShigh TSSDescHigh = 0;
+-        TSSDescHigh.base = bits(TSSVirtAddr, 63, 32);
+-
+-        struct TSSDesc {
+-            uint64_t low;
+-            uint64_t high;
+-        } tssDescVal = {TSSDescLow, TSSDescHigh};
++        Tss64Desc tssDesc;
++        tssSegDesc64(tssDesc, tss_base_addr, tss_limit);
++        tssDesc.low.dpl = 3;
+ 
+         physProxy.writeBlob(GDTPhysAddr + numGDTEntries * 8,
+-                            (uint8_t *)(&tssDescVal), sizeof(tssDescVal));
+-
+-        numGDTEntries++;
++                            (uint8_t *)(&tssDesc), sizeof(tssDesc));
+ 
+         SegSelector tssSel = 0;
+-        tssSel.si = numGDTEntries - 1;
++        tssSel.si = numGDTEntries;
++        tssSel.rpl = 3;
+ 
+-        uint64_t tss_base_addr = (TSSDescHigh.base << 32) |
+-                                 (TSSDescLow.baseHigh << 24) |
+-                                  TSSDescLow.baseLow;
+-        uint64_t tss_limit = TSSDescLow.limitLow | (TSSDescLow.limitHigh << 16);
++        numGDTEntries += 2;
+ 
+         SegAttr tss_attr = 0;
+-
+-        tss_attr.type = TSSDescLow.type;
+-        tss_attr.dpl = TSSDescLow.dpl;
+-        tss_attr.present = TSSDescLow.p;
+-        tss_attr.granularity = TSSDescLow.g;
++        tss_attr.type = tssDesc.low.type;
++        tss_attr.dpl = tssDesc.low.dpl;
++        tss_attr.present = tssDesc.low.p;
++        tss_attr.granularity = tssDesc.low.g;
+         tss_attr.unusable = 0;
+ 
++        Efer efer = 0;
++        efer.sce = 1; // Enable system call extensions.
++        efer.lme = 1; // Enable long mode.
++        efer.lma = 1; // Activate long mode.
++        efer.nxe = 0; // Enable nx support.
++
++        SegAttr tslAttr = 0;
++        tslAttr.unusable = 1;
++
++        CR0 cr0 = 0;
++        cr0.pg = 1; // Turn on paging.
++        cr0.cd = 0; // Don't disable caching.
++        cr0.nw = 0; // This is bit is defined to be ignored.
++        cr0.am = 0; // No alignment checking
++        cr0.wp = 0; // Supervisor mode can write read only pages
++        cr0.ne = 1;
++        cr0.et = 1; // This should always be 1
++        cr0.ts = 0; // We don't do task switching, so causing fp exceptions
++                    // would be pointless.
++        cr0.em = 0; // Allow x87 instructions to execute natively.
++        cr0.mp = 1; // This doesn't really matter, but the manual suggests
++                    // setting it to one.
++        cr0.pe = 1; // We're definitely in protected mode.
++
++        CR2 cr2 = 0;
++
++        CR3 cr3 = pageTablePhysAddr;
++
++        CR4 cr4 = 0;
++        //Turn on pae.
++        cr4.osxsave = 1; // Enable XSAVE and Proc Extended States
++        cr4.osxmmexcpt = 1; // Operating System Unmasked Exception
++        cr4.osfxsr = 1; // Operating System FXSave/FSRSTOR Support
++        cr4.pce = 0; // Performance-Monitoring Counter Enable
++        cr4.pge = 0; // Page-Global Enable
++        cr4.mce = 0; // Machine Check Enable
++        cr4.pae = 1; // Physical-Address Extension
++        cr4.pse = 0; // Page Size Extensions
++        cr4.de = 0; // Debugging Extensions
++        cr4.tsd = 0; // Time Stamp Disable
++        cr4.pvi = 0; // Protected-Mode Virtual Interrupts
++        cr4.vme = 0; // Virtual-8086 Mode Extensions
++
++        CR8 cr8 = 0;
++
++        Star star = 0;
++        if (isIntel){
++                star.syscallCsAndSs = csSys;
++                star.sysretCsAndSs = 0;
++        }
++
+         for (int i = 0; i < contextIds.size(); i++) {
+             ThreadContext * tc = system->getThreadContext(contextIds[i]);
+ 
+-            tc->setMiscReg(MISCREG_CS, cs);
+-            tc->setMiscReg(MISCREG_DS, ds);
+-            tc->setMiscReg(MISCREG_ES, ds);
+-            tc->setMiscReg(MISCREG_FS, ds);
+-            tc->setMiscReg(MISCREG_GS, ds);
+-            tc->setMiscReg(MISCREG_SS, ds);
+-
+             // LDT
+             tc->setMiscReg(MISCREG_TSL, 0);
+-            SegAttr tslAttr = 0;
+-            tslAttr.present = 1;
+-            tslAttr.type = 2;
+             tc->setMiscReg(MISCREG_TSL_ATTR, tslAttr);
+ 
+             tc->setMiscReg(MISCREG_TSG_BASE, GDTVirtAddr);
++            tc->setMiscReg(MISCREG_TSG_EFF_BASE, GDTVirtAddr);
+             tc->setMiscReg(MISCREG_TSG_LIMIT, 8 * numGDTEntries - 1);
+ 
+             tc->setMiscReg(MISCREG_TR, tssSel);
+             tc->setMiscReg(MISCREG_TR_BASE, tss_base_addr);
+-            tc->setMiscReg(MISCREG_TR_EFF_BASE, 0);
++            tc->setMiscReg(MISCREG_TR_EFF_BASE, tss_base_addr);
+             tc->setMiscReg(MISCREG_TR_LIMIT, tss_limit);
+             tc->setMiscReg(MISCREG_TR_ATTR, tss_attr);
+ 
+-            //Start using longmode segments.
++            // Start using longmode segments.
++            tc->setMiscReg(MISCREG_CS, cs);
+             installSegDesc(tc, SEGMENT_REG_CS, csDesc, true);
++            tc->setMiscReg(MISCREG_DS, ds);
+             installSegDesc(tc, SEGMENT_REG_DS, dsDesc, true);
++            tc->setMiscReg(MISCREG_ES, ds);
+             installSegDesc(tc, SEGMENT_REG_ES, dsDesc, true);
++            tc->setMiscReg(MISCREG_FS, ds);
+             installSegDesc(tc, SEGMENT_REG_FS, dsDesc, true);
++            tc->setMiscReg(MISCREG_GS, ds);
+             installSegDesc(tc, SEGMENT_REG_GS, dsDesc, true);
++            tc->setMiscReg(MISCREG_SS, ds);
+             installSegDesc(tc, SEGMENT_REG_SS, dsDesc, true);
+ 
+-            Efer efer = 0;
+-            efer.sce = 1; // Enable system call extensions.
+-            efer.lme = 1; // Enable long mode.
+-            efer.lma = 1; // Activate long mode.
+-            efer.nxe = 0; // Enable nx support.
+-            efer.svme = 1; // Enable svm support for now.
+-            efer.ffxsr = 0; // Turn on fast fxsave and fxrstor.
+             tc->setMiscReg(MISCREG_EFER, efer);
+ 
+-            //Set up the registers that describe the operating mode.
+-            CR0 cr0 = 0;
+-            cr0.pg = 1; // Turn on paging.
+-            cr0.cd = 0; // Don't disable caching.
+-            cr0.nw = 0; // This is bit is defined to be ignored.
+-            cr0.am = 1; // No alignment checking
+-            cr0.wp = 1; // Supervisor mode can write read only pages
+-            cr0.ne = 1;
+-            cr0.et = 1; // This should always be 1
+-            cr0.ts = 0; // We don't do task switching, so causing fp exceptions
+-                        // would be pointless.
+-            cr0.em = 0; // Allow x87 instructions to execute natively.
+-            cr0.mp = 1; // This doesn't really matter, but the manual suggests
+-                        // setting it to one.
+-            cr0.pe = 1; // We're definitely in protected mode.
++            // Set up the registers that describe the operating mode.
+             tc->setMiscReg(MISCREG_CR0, cr0);
+-
+-            CR0 cr2 = 0;
+             tc->setMiscReg(MISCREG_CR2, cr2);
+-
+-            CR3 cr3 = pageTablePhysAddr;
+             tc->setMiscReg(MISCREG_CR3, cr3);
+-
+-            CR4 cr4 = 0;
+-            //Turn on pae.
+-            cr4.osxsave = 1; // Enable XSAVE and Proc Extended States
+-            cr4.osxmmexcpt = 1; // Operating System Unmasked Exception
+-            cr4.osfxsr = 1; // Operating System FXSave/FSRSTOR Support
+-            cr4.pce = 0; // Performance-Monitoring Counter Enable
+-            cr4.pge = 0; // Page-Global Enable
+-            cr4.mce = 0; // Machine Check Enable
+-            cr4.pae = 1; // Physical-Address Extension
+-            cr4.pse = 0; // Page Size Extensions
+-            cr4.de = 0; // Debugging Extensions
+-            cr4.tsd = 0; // Time Stamp Disable
+-            cr4.pvi = 0; // Protected-Mode Virtual Interrupts
+-            cr4.vme = 0; // Virtual-8086 Mode Extensions
+-
+             tc->setMiscReg(MISCREG_CR4, cr4);
+-
+-            CR4 cr8 = 0;
+             tc->setMiscReg(MISCREG_CR8, cr8);
+ 
+-            const Addr PageMapLevel4 = pageTablePhysAddr;
+-            //Point to the page tables.
+-            tc->setMiscReg(MISCREG_CR3, PageMapLevel4);
+-
+             tc->setMiscReg(MISCREG_MXCSR, 0x1f80);
+ 
+             tc->setMiscReg(MISCREG_APIC_BASE, 0xfee00900);
+ 
+-            tc->setMiscReg(MISCREG_TSG_BASE, GDTVirtAddr);
+-            tc->setMiscReg(MISCREG_TSG_LIMIT, 0xffff);
+-
+             tc->setMiscReg(MISCREG_IDTR_BASE, IDTVirtAddr);
++            tc->setMiscReg(MISCREG_IDTR_EFF_BASE, IDTVirtAddr);
+             tc->setMiscReg(MISCREG_IDTR_LIMIT, 0xffff);
+ 
+-            /* enabling syscall and sysret */
+-            MiscReg star = ((MiscReg)sret << 48) | ((MiscReg)scall << 32);
++            // Configure syscall and sysret.
++            if (!isIntel){
++                star = ((MiscReg)sret << 48) | ((MiscReg)scall << 32);
++            }
+             tc->setMiscReg(MISCREG_STAR, star);
+-            MiscReg lstar = (MiscReg)syscallCodeVirtAddr;
+-            tc->setMiscReg(MISCREG_LSTAR, lstar);
+-            MiscReg sfmask = (1 << 8) | (1 << 10); // TF | DF
+-            tc->setMiscReg(MISCREG_SF_MASK, sfmask);
++            tc->setMiscReg(MISCREG_LSTAR, syscallCodeVirtAddr);
++            tc->setMiscReg(MISCREG_SF_MASK, TFBit | DFBit);
+         }
+ 
+         /* Set up the content of the TSS and write it to physical memory. */
+@@ -489,7 +487,7 @@ X86_64Process::initState()
+         GateDescriptorLow PFGateLow = 0;
+         PFGateLow.offsetHigh = bits(PFHandlerVirtAddr, 31, 16);
+         PFGateLow.offsetLow = bits(PFHandlerVirtAddr, 15, 0);
+-        PFGateLow.selector = csLowPL;
++        PFGateLow.selector = csSys;
+         PFGateLow.p = 1;
+         PFGateLow.dpl = 0;
+         PFGateLow.type = 0xe;      // gate interrupt type
+diff --git a/src/arch/x86/regs/misc.hh b/src/arch/x86/regs/misc.hh
+index 48f7d974db..4be41105c6 100644
+--- a/src/arch/x86/regs/misc.hh
++++ b/src/arch/x86/regs/misc.hh
+@@ -897,43 +897,15 @@ namespace X86ISA
+         EndSubBitUnion(type)
+     EndBitUnion(SegDescriptor)
+ 
+-    /**
+-     * TSS Descriptor (long mode - 128 bits)
+-     * the lower 64 bits
+-     */
+-    BitUnion64(TSSlow)
+-        Bitfield<63, 56> baseHigh;
+-        Bitfield<39, 16> baseLow;
+-        Bitfield<55> g; // Granularity
+-        Bitfield<52> avl; // Available To Software
+-        Bitfield<51, 48> limitHigh;
+-        Bitfield<15, 0> limitLow;
+-        Bitfield<47> p; // Present
+-        Bitfield<46, 45> dpl; // Descriptor Privilege-Level
+-        SubBitUnion(type, 43, 40)
+-            // Specifies whether this descriptor is for code or data.
+-            Bitfield<43> codeOrData;
+-
+-            // These bit fields are for code segments
+-            Bitfield<42> c; // Conforming
+-            Bitfield<41> r; // Readable
+-
+-            // These bit fields are for data segments
+-            Bitfield<42> e; // Expand-Down
+-            Bitfield<41> w; // Writable
+-
+-            // This is used for both code and data segments.
+-            Bitfield<40> a; // Accessed
+-        EndSubBitUnion(type)
+-    EndBitUnion(TSSlow)
++    struct Tss64Desc
++    {
++        SegDescriptor low;
+ 
+-    /**
+-     * TSS Descriptor (long mode - 128 bits)
+-     * the upper 64 bits
+-     */
+-    BitUnion64(TSShigh)
+-        Bitfield<31, 0> base;
+-    EndBitUnion(TSShigh)
++        BitUnion64(TSSHigh)
++            Bitfield<32, 0> base;
++        EndBitUnion(TSSHigh)
++        TSSHigh high;
++    };
+ 
+     BitUnion64(SegAttr)
+         Bitfield<1, 0> dpl;
+diff --git a/src/arch/x86/system.cc b/src/arch/x86/system.cc
+index ecde8366a7..5127f96267 100644
+--- a/src/arch/x86/system.cc
++++ b/src/arch/x86/system.cc
+@@ -42,6 +42,7 @@
+ #include "arch/x86/bios/intelmp.hh"
+ #include "arch/x86/bios/smbios.hh"
+ #include "arch/x86/isa_traits.hh"
++#include "arch/x86/utility.hh"
+ #include "base/loader/object_file.hh"
+ #include "cpu/thread_context.hh"
+ #include "params/X86System.hh"
+@@ -58,52 +59,6 @@ X86System::X86System(Params *p) :
+ }
+ 
+ void
+-X86ISA::installSegDesc(ThreadContext *tc, SegmentRegIndex seg,
+-        SegDescriptor desc, bool longmode)
+-{
+-    uint64_t base = desc.baseLow + (desc.baseHigh << 24);
+-    bool honorBase = !longmode || seg == SEGMENT_REG_FS ||
+-                                  seg == SEGMENT_REG_GS ||
+-                                  seg == SEGMENT_REG_TSL ||
+-                                  seg == SYS_SEGMENT_REG_TR;
+-    uint64_t limit = desc.limitLow | (desc.limitHigh << 16);
+-
+-    SegAttr attr = 0;
+-
+-    attr.dpl = desc.dpl;
+-    attr.unusable = 0;
+-    attr.defaultSize = desc.d;
+-    attr.longMode = desc.l;
+-    attr.avl = desc.avl;
+-    attr.granularity = desc.g;
+-    attr.present = desc.p;
+-    attr.system = desc.s;
+-    attr.type = desc.type;
+-    if (desc.s) {
+-        if (desc.type.codeOrData) {
+-            // Code segment
+-            attr.expandDown = 0;
+-            attr.readable = desc.type.r;
+-            attr.writable = 0;
+-        } else {
+-            // Data segment
+-            attr.expandDown = desc.type.e;
+-            attr.readable = 1;
+-            attr.writable = desc.type.w;
+-        }
+-    } else {
+-        attr.readable = 1;
+-        attr.writable = 1;
+-        attr.expandDown = 0;
+-    }
+-
+-    tc->setMiscReg(MISCREG_SEG_BASE(seg), base);
+-    tc->setMiscReg(MISCREG_SEG_EFF_BASE(seg), honorBase ? base : 0);
+-    tc->setMiscReg(MISCREG_SEG_LIMIT(seg), limit);
+-    tc->setMiscReg(MISCREG_SEG_ATTR(seg), (MiscReg)attr);
+-}
+-
+-void
+ X86System::initState()
+ {
+     System::initState();
+@@ -145,73 +100,59 @@ X86System::initState()
+                         (uint8_t *)(&nullDescriptor), 8);
+     numGDTEntries++;
+ 
+-    SegDescriptor initDesc = 0;
+-    initDesc.type.codeOrData = 0; // code or data type
+-    initDesc.type.c = 0;          // conforming
+-    initDesc.type.r = 1;          // readable
+-    initDesc.dpl = 0;             // privilege
+-    initDesc.p = 1;               // present
+-    initDesc.l = 1;               // longmode - 64 bit
+-    initDesc.d = 0;               // operand size
+-    initDesc.g = 1;               // granularity
+-    initDesc.s = 1;               // system segment
+-    initDesc.limitHigh = 0xFFFF;
+-    initDesc.limitLow = 0xF;
+-    initDesc.baseHigh = 0x0;
+-    initDesc.baseLow = 0x0;
+-
+-    //64 bit code segment
+-    SegDescriptor csDesc = initDesc;
+-    csDesc.type.codeOrData = 1;
+-    csDesc.dpl = 0;
+-    //Because we're dealing with a pointer and I don't think it's
+-    //guaranteed that there isn't anything in a nonvirtual class between
+-    //it's beginning in memory and it's actual data, we'll use an
+-    //intermediary.
++    // 64 bit code segment.
++    SegDescriptor csDesc = codeSegDesc64();
++    // Because we're dealing with a pointer and I don't think it's
++    // guaranteed that there isn't anything in a nonvirtual class between
++    // it's beginning in memory and it's actual data, we'll use an
++    // intermediary.
+     uint64_t csDescVal = csDesc;
+     physProxy.writeBlob(GDTBase + numGDTEntries * 8,
+                         (uint8_t *)(&csDescVal), 8);
+ 
+-    numGDTEntries++;
+-
+     SegSelector cs = 0;
+-    cs.si = numGDTEntries - 1;
++    cs.si = numGDTEntries;
+ 
+-    tc->setMiscReg(MISCREG_CS, (MiscReg)cs);
++    numGDTEntries++;
++
++    tc->setMiscReg(MISCREG_CS, cs);
+ 
+-    //32 bit data segment
+-    SegDescriptor dsDesc = initDesc;
++    // 32 bit data segment.
++    SegDescriptor dsDesc = dataSegDesc();
+     uint64_t dsDescVal = dsDesc;
+     physProxy.writeBlob(GDTBase + numGDTEntries * 8,
+                         (uint8_t *)(&dsDescVal), 8);
+ 
+-    numGDTEntries++;
+-
+     SegSelector ds = 0;
+-    ds.si = numGDTEntries - 1;
++    ds.si = numGDTEntries;
+ 
+-    tc->setMiscReg(MISCREG_DS, (MiscReg)ds);
+-    tc->setMiscReg(MISCREG_ES, (MiscReg)ds);
+-    tc->setMiscReg(MISCREG_FS, (MiscReg)ds);
+-    tc->setMiscReg(MISCREG_GS, (MiscReg)ds);
+-    tc->setMiscReg(MISCREG_SS, (MiscReg)ds);
++    numGDTEntries++;
+ 
+-    tc->setMiscReg(MISCREG_TSL, 0);
+-    tc->setMiscReg(MISCREG_TSG_BASE, GDTBase);
+-    tc->setMiscReg(MISCREG_TSG_LIMIT, 8 * numGDTEntries - 1);
++    tc->setMiscReg(MISCREG_DS, ds);
++    tc->setMiscReg(MISCREG_ES, ds);
++    tc->setMiscReg(MISCREG_FS, ds);
++    tc->setMiscReg(MISCREG_GS, ds);
++    tc->setMiscReg(MISCREG_SS, ds);
+ 
+-    SegDescriptor tssDesc = initDesc;
+-    uint64_t tssDescVal = tssDesc;
++    Tss64Desc tssDesc;
++    tssSegDesc64(tssDesc, 0x0, 0xFFFFFFFF);
+     physProxy.writeBlob(GDTBase + numGDTEntries * 8,
+-                        (uint8_t *)(&tssDescVal), 8);
+-
+-    numGDTEntries++;
++                        (uint8_t *)(&tssDesc), 16);
+ 
+     SegSelector tss = 0;
+-    tss.si = numGDTEntries - 1;
++    tss.si = numGDTEntries;
++
++    numGDTEntries += 2;
++
++    tc->setMiscReg(MISCREG_TSL, 0);
++    SegAttr ldtAttr = 0;
++    ldtAttr.unusable = 1;
++    tc->setMiscReg(MISCREG_TSL_ATTR, ldtAttr);
++    tc->setMiscReg(MISCREG_TSG_BASE, GDTBase);
++    tc->setMiscReg(MISCREG_TSG_LIMIT, 8 * numGDTEntries - 1);
+ 
+-    tc->setMiscReg(MISCREG_TR, (MiscReg)tss);
+-    installSegDesc(tc, SYS_SEGMENT_REG_TR, tssDesc, true);
++    tc->setMiscReg(MISCREG_TR, tss);
++    installSegDesc(tc, SYS_SEGMENT_REG_TR, tssDesc.low, true);
+ 
+     /*
+      * Identity map the first 4GB of memory. In order to map this region
+@@ -271,27 +212,27 @@ X86System::initState()
+      * Transition from real mode all the way up to Long mode
+      */
+     CR0 cr0 = tc->readMiscRegNoEffect(MISCREG_CR0);
+-    //Turn off paging.
++    // Turn off paging.
+     cr0.pg = 0;
+     tc->setMiscReg(MISCREG_CR0, cr0);
+-    //Turn on protected mode.
++    // Turn on protected mode.
+     cr0.pe = 1;
+     tc->setMiscReg(MISCREG_CR0, cr0);
+ 
+     CR4 cr4 = tc->readMiscRegNoEffect(MISCREG_CR4);
+-    //Turn on pae.
++    // Turn on pae.
+     cr4.pae = 1;
+     tc->setMiscReg(MISCREG_CR4, cr4);
+ 
+-    //Point to the page tables.
++    // Point to the page tables.
+     tc->setMiscReg(MISCREG_CR3, PageMapLevel4);
+ 
+     Efer efer = tc->readMiscRegNoEffect(MISCREG_EFER);
+-    //Enable long mode.
++    // Enable long mode.
+     efer.lme = 1;
+     tc->setMiscReg(MISCREG_EFER, efer);
+ 
+-    //Start using longmode segments.
++    // Start using longmode segments.
+     installSegDesc(tc, SEGMENT_REG_CS, csDesc, true);
+     installSegDesc(tc, SEGMENT_REG_DS, dsDesc, true);
+     installSegDesc(tc, SEGMENT_REG_ES, dsDesc, true);
+@@ -299,7 +240,7 @@ X86System::initState()
+     installSegDesc(tc, SEGMENT_REG_GS, dsDesc, true);
+     installSegDesc(tc, SEGMENT_REG_SS, dsDesc, true);
+ 
+-    //Activate long mode.
++    // Activate long mode.
+     cr0.pg = 1;
+     tc->setMiscReg(MISCREG_CR0, cr0);
+ 
+@@ -310,12 +251,12 @@ X86System::initState()
+     Addr ebdaPos = 0xF0000;
+     Addr fixed, table;
+ 
+-    //Write out the SMBios/DMI table
++    // Write out the SMBios/DMI table
+     writeOutSMBiosTable(ebdaPos, fixed, table);
+     ebdaPos += (fixed + table);
+     ebdaPos = roundUp(ebdaPos, 16);
+ 
+-    //Write out the Intel MP Specification configuration table
++    // Write out the Intel MP Specification configuration table
+     writeOutMPTable(ebdaPos, fixed, table);
+     ebdaPos += (fixed + table);
+ }
+diff --git a/src/arch/x86/system.hh b/src/arch/x86/system.hh
+index 45bc9651ce..e1b2637ccf 100644
+--- a/src/arch/x86/system.hh
++++ b/src/arch/x86/system.hh
+@@ -59,9 +59,6 @@ namespace X86ISA
+         class ConfigTable;
+     }
+ 
+-    void installSegDesc(ThreadContext *tc, SegmentRegIndex seg,
+-                        SegDescriptor desc, bool longmode);
+-
+     /* memory mappings for KVMCpu in SE mode */
+     const uint64_t syscallCodeVirtAddr = 0xffff800000000000;
+     const uint64_t syscallCodePhysAddr = 0x60000;
+diff --git a/src/arch/x86/utility.cc b/src/arch/x86/utility.cc
+index 33b53ca925..4aa5d537c2 100644
+--- a/src/arch/x86/utility.cc
++++ b/src/arch/x86/utility.cc
+@@ -40,6 +40,8 @@
+ 
+ #include "arch/x86/utility.hh"
+ 
++#include <fstream>
++
+ #include "arch/x86/interrupts.hh"
+ #include "arch/x86/registers.hh"
+ #include "arch/x86/x86_traits.hh"
+@@ -367,4 +369,89 @@ storeFloat80(void *_mem, double value)
+     memcpy(_mem, fp80.bits, 10);
+ }
+ 
++void
++installSegDesc(ThreadContext *tc, SegmentRegIndex seg,
++               SegDescriptor desc, bool longmode)
++{
++    uint64_t base = desc.baseLow + (desc.baseHigh << 24);
++    bool honorBase = !longmode || seg == SEGMENT_REG_FS ||
++                                  seg == SEGMENT_REG_GS ||
++                                  seg == SEGMENT_REG_TSL ||
++                                  seg == SYS_SEGMENT_REG_TR;
++    uint64_t limit = desc.limitLow | (desc.limitHigh << 16);
++    if (desc.g)
++        limit = limit * PageBytes + PageBytes - 1;
++
++    SegAttr attr = 0;
++
++    attr.dpl = desc.dpl;
++    attr.unusable = 0;
++    attr.defaultSize = desc.d;
++    attr.longMode = desc.l;
++    attr.avl = desc.avl;
++    attr.granularity = desc.g;
++    attr.present = desc.p;
++    attr.system = desc.s;
++    attr.type = desc.type;
++    if (desc.s) {
++        if (desc.type.codeOrData) {
++            // Code segment
++            attr.expandDown = 0;
++            attr.readable = desc.type.r;
++            attr.writable = 0;
++        } else {
++            // Data segment
++            attr.expandDown = desc.type.e;
++            attr.readable = 1;
++            attr.writable = desc.type.w;
++        }
++    } else {
++        attr.readable = 1;
++        attr.writable = 1;
++        attr.expandDown = 0;
++    }
++
++    tc->setMiscReg(MISCREG_SEG_BASE(seg), base);
++    tc->setMiscReg(MISCREG_SEG_EFF_BASE(seg), honorBase ? base : 0);
++    tc->setMiscReg(MISCREG_SEG_LIMIT(seg), limit);
++    tc->setMiscReg(MISCREG_SEG_ATTR(seg), (MiscReg)attr);
++}
++
++
++int
++isIntelCPU()
++{
++    static int checked=0;
++    static int isIntel=0;
++
++    if (checked){
++        return(isIntel);
++    } else{
++        checked = 1;
++        std::string vendor("vendor_id");
++        std::string check("GenuineIntel");
++        std::ifstream inFile("/proc/cpuinfo");
++        for (std::string line; getline( inFile, line); ) {
++            std::stringstream stream(line);
++            std::string oneWord;
++            int count=0;
++            while (stream >> oneWord){ count++; }
++            if (count == 3){
++                std::stringstream stream(line);
++                std::string type_string, value_string;
++                stream >> type_string;
++                stream >> oneWord;
++                stream >> value_string;
++                if (!type_string.compare(vendor)) {
++                    inFile.close();
++                    isIntel = !value_string.compare(check);
++                    std::cout << "running on " << value_string << "\n";
++                    return isIntel;
++                }
++            }
++        }
++    }
++    return isIntel;
++}
++
+ } // namespace X86_ISA
+diff --git a/src/arch/x86/utility.hh b/src/arch/x86/utility.hh
+index 87d5cbb6c9..8282453e79 100644
+--- a/src/arch/x86/utility.hh
++++ b/src/arch/x86/utility.hh
+@@ -196,6 +196,87 @@ namespace X86ISA
+      * @param value Double precision float to store.
+      */
+     void storeFloat80(void *mem, double value);
++
++    /**
++     * Build a standard 64 bit code segment descriptor.
++     */
++    static inline SegDescriptor
++    codeSegDesc64()
++    {
++        SegDescriptor desc = 0;
++        desc.type.codeOrData = 1;
++        desc.type.c = 0; // Not conforming
++        desc.type.r = 1; // Readable
++        desc.dpl = 0; // Privelege level 0
++        desc.p = 1; // Present
++        desc.l = 1; // 64 bit
++        desc.d = 0; // default operand size
++        desc.g = 1; // Page granularity
++        desc.s = 1; // Not a system segment
++        desc.limitHigh = 0xF;
++        desc.limitLow = 0xFFFF;
++        return desc;
++    }
++
++    /**
++     * Build a standard 32/64 bit data segment descriptor.
++     */
++    static inline SegDescriptor
++    dataSegDesc()
++    {
++        SegDescriptor desc = 0;
++        desc.type.codeOrData = 0;
++        desc.type.e = 0; // Not expand down
++        desc.type.w = 1; // Writable
++        desc.dpl = 0; // Privelege level 0
++        desc.p = 1; // Present
++        desc.d = 1; // Default operand size
++        desc.g = 1; // Page granularity
++        desc.s = 1; // Not a system segment
++        desc.limitHigh = 0xF;
++        desc.limitLow = 0xFFFF;
++        return desc;
++    }
++
++    /**
++     * Build a 64 bit tss segment descriptor.
++     *
++     * @param desc The descriptor structure to fill in.
++     * @param base The base address of the TSS.
++     * @param limit The limit of the TSS.
++     */
++    static inline void
++    tssSegDesc64(Tss64Desc &desc, Addr base, Addr limit)
++    {
++        desc.low = 0;
++        desc.high = 0;
++
++        desc.low.type = 0xB;
++        desc.low.dpl = 0; // Privelege level 0
++        desc.low.p = 1; // Present
++        desc.low.d = 1; // Default operand size
++        desc.low.s = 0;
++
++        if (limit > mask(20)) {
++            if ((limit & mask(12)) != mask(12)) {
++                panic("Limit %#x doesn't fit in a segment descriptor.\n",
++                      limit);
++            }
++            limit = limit >> 12;
++            desc.low.g = 1;
++        }
++        desc.low.limitHigh = bits(limit, 19, 16);
++        desc.low.limitLow = bits(limit, 15, 0);
++
++        desc.low.baseHigh = bits(base, 31, 24);
++        desc.low.baseLow = bits(base, 23, 0);
++        desc.high.base = bits(base, 63, 32);
++    }
++
++    void installSegDesc(ThreadContext *tc, SegmentRegIndex seg,
++                        SegDescriptor desc, bool longmode);
++
++    int isIntelCPU();
+ }
+ 
+ #endif // __ARCH_X86_UTILITY_HH__
+diff --git a/src/cpu/kvm/x86_cpu.cc b/src/cpu/kvm/x86_cpu.cc
+index c73ed585ee..4000fb7191 100644
+--- a/src/cpu/kvm/x86_cpu.cc
++++ b/src/cpu/kvm/x86_cpu.cc
+@@ -507,9 +507,9 @@ checkSeg(const char *name, const int idx, const struct kvm_segment &seg,
+         if (!seg.present)
+             warn("%s: P flag not set\n", name);
+ 
+-        if (((seg.limit & 0xFFF) == 0 && seg.g) ||
+-            ((seg.limit & 0xFFF00000) != 0 && !seg.g)) {
+-            warn("%s limit (0x%x) and g (%i) combination is illegal.\n",
++        if ((seg.g && bits(seg.limit, 11, 0) != mask(12)) ||
++            (bits(seg.limit, 31, 20) && !seg.g)) {
++            warn("%s limit (%#x) and g (%i) combination is illegal.\n",
+                  name, seg.limit, seg.g);
+         }
+         break;
+@@ -721,12 +721,7 @@ setKvmSegmentReg(ThreadContext *tc, struct kvm_segment &kvm_seg,
+     kvm_seg.l = attr.longMode;
+     kvm_seg.g = attr.granularity;
+     kvm_seg.avl = attr.avl;
+-
+-    // A segment is normally unusable when the selector is zero. There
+-    // is a attr.unusable flag in gem5, but it seems unused. qemu
+-    // seems to set this to 0 all the time, so we just do the same and
+-    // hope for the best.
+-    kvm_seg.unusable = 0;
++    kvm_seg.unusable = attr.unusable;
+ }
+ 
+ static inline void

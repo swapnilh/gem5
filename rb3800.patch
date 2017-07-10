@@ -1,0 +1,32 @@
+# Node ID c76b781104905fd4c9bb39a9876d7dfa92200026
+# Parent  9bddacd7af81567eec633c64cf15a3acd996c795
+diff --git a/src/arch/x86/isa/microops/regop.isa b/src/arch/x86/isa/microops/regop.isa
+--- a/src/arch/x86/isa/microops/regop.isa
++++ b/src/arch/x86/isa/microops/regop.isa
+@@ -580,15 +580,17 @@
+ 
+         code = '''
+             ProdLow = psrc1 * op2;
+-            int halfSize = (dataSize * 8) / 2;
+-            uint64_t shifter = (ULL(1) << halfSize);
+-            uint64_t psrc1_h = psrc1 / shifter;
+-            uint64_t psrc1_l = psrc1 & mask(halfSize);
+-            uint64_t psrc2_h = (op2 / shifter) & mask(halfSize);
+-            uint64_t psrc2_l = op2 & mask(halfSize);
+-            ProdHi = ((psrc1_l * psrc2_h + psrc1_h * psrc2_l +
+-                      ((psrc1_l * psrc2_l) / shifter)) / shifter) +
+-                     psrc1_h * psrc2_h;
++            int shifter = (dataSize * 8) / 2;
++            uint64_t psrc1_h = (psrc1 >> shifter) & mask(shifter);
++            uint64_t psrc1_l = psrc1 & mask(shifter);
++            uint64_t psrc2_h = (op2 >> shifter) & mask(shifter);
++            uint64_t psrc2_l = op2 & mask(shifter);
++
++            ProdHi = psrc1_h * psrc2_h + ((psrc1_h * psrc2_l) >> shifter)
++                     + ((psrc1_l * psrc2_h) >> shifter)
++                     + ((((psrc1_l * psrc2_h) & 0xffffffff)
++                     + ((psrc1_h * psrc2_l) & 0xffffffff)
++                     + ((psrc1_l * psrc2_l) >> shifter)) >> shifter);
+             '''
+         flag_code = '''
+             if (ProdHi) {

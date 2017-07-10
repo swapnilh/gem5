@@ -1,0 +1,30 @@
+Can use for passing format bit =
+#define _PAGE_BIT_SOFTW1        9       /* available for programmer */
+#define _PAGE_BIT_SOFTW2        10      /* " */
+#define _PAGE_BIT_SOFTW3        11      /* " */
+#define _PAGE_BIT_PAT_LARGE     12      /* On 2MB or 1GB pages */
+#define _PAGE_BIT_SOFTW4        58      /* available for programmer */
+
+
+int __pte_alloc_kernel(pmd_t *pmd, unsigned long address)
+
+Dont need fill page table manually? Directly set a higher level bit in handle_mm_fault (figure out how does munmap work?)
+
+USING _PAGE_BIT_SOFTW1 as format bit
+Simply mark the earliest possible entry as format bit == 1.
+Next level will be treated as PERM by accel, PTE by core
+
+#pages = 1<< apriori_order
+
+Size = (1 << apriori_order)*4K
+Size = (1 << (apriori_order + 12))
+
+                Option A or Option B
+4-level walk = 4KB
+3-level walk = 2MB or 2MB/32 = 64KB
+2-level walk = 1GB or 1GB/32 = 32 MB
+1-level walk = 512GB or 512Gb/32 = 16GB
+
+1. If entry does not exist, mark format bit as per Option B.
+2. If entry exists and format bit marked, Treat it as 1.
+3. Else if entry exists, then mark it as per Option A.
