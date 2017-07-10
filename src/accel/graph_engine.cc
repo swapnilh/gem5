@@ -313,13 +313,16 @@ void
 GraphEngine::ProcLoopIteration::finishIteration()
 {
     accel->procFinished++;
-    DPRINTFS(Accel, accel, "Proccessing::Finished %d/%d\n",
-             accel->procFinished, params.ActiveVertexCount);
-
+    if (accel->procFinished % 1000 == 0) {
+        DPRINTFS(Accel, accel, "Proccessing::Finished %d/%d\n",
+                accel->procFinished, params.ActiveVertexCount);
+    }
     /* Start next iteration of Process Phase */
     if (i+step <= params.ActiveVertexCount) {
-        DPRINTFS(Accel, accel, "Processing::New iteration for %d\n",
-                 i+step);
+        if (accel->procFinished % 1000 == 0) {
+            DPRINTFS(Accel, accel, "Processing::New iteration for %d\n",
+                    i+step);
+        }
              new ProcLoopIteration(i+step, step, params, accel);
     } else {
         DPRINTFS(Accel, accel, "Processing finished for stream %d\n",
@@ -599,10 +602,14 @@ void
 GraphEngine::ApplyLoopIteration::stage13()
 {
     accel->applyFinished++;
-    DPRINTFS(Accel, accel, "Apply::Finished %d/%d\n",
-             accel->applyFinished, params.VertexCount);
+    if (accel->applyFinished % 1000 == 0) {
+        DPRINTFS(Accel, accel, "Apply::Finished %d/%d\n",
+                accel->applyFinished, params.VertexCount);
+    }
     if (i+step <= params.VertexCount) {
-        DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i+step);
+        if (accel->procFinished % 1000 == 0) {
+            DPRINTFS(Accel, accel, "Apply::New iteration for %d\n", i+step);
+        }
         new ApplyLoopIteration(i+step, step, params, accel);
     } else {
         DPRINTFS(Accel, accel, "Apply finished for stream %d\n",
