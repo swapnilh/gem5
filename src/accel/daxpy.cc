@@ -185,12 +185,11 @@ Daxpy::LoopIteration::stage2()
 void
 Daxpy::LoopIteration::stage3()
 {
-    double tmp = y;
     double ans = x * params.alpha + y;
     uint8_t *y = new uint8_t[8];
     *(double*)y = ans;
     DPRINTF(Accel, "Performing %f * %f + %f = %f\n",
-            params.alpha, x, tmp, ans);
+            params.alpha, x, y, ans);
 
     stage = 3;
     accel->accessMemoryCallback(params.Y+8*i, 8, BaseTLB::Write, y, this);

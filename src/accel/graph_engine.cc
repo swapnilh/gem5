@@ -820,7 +820,6 @@ GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
 {
     bool no_outstanding = true;
     auto it_proc = procAddressCallbacks.find(addr);
-    auto it_apply = applyAddressCallbacks.find(addr);
     switch (status) {
     case ExecutingProcessingLoop:
         DPRINTF(AccelVerbose, "Address :%#x set by iter:%s\n", addr,
@@ -837,7 +836,8 @@ GraphEngine::setAddressCallback(Addr addr, LoopIteration* iter)
     case ExecutingApplyLoop:
         DPRINTF(AccelVerbose, "Address :%#x set by iter:%s\n", addr,
                 ((ApplyLoopIteration*)iter)->name());
-        assert(it_apply == applyAddressCallbacks.end());
+        assert(applyAddressCallbacks.find(addr) ==
+               applyAddressCallbacks.end());
         applyAddressCallbacks[addr].push_back((ApplyLoopIteration*)iter);
         break;
     default:
