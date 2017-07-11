@@ -744,7 +744,8 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
         tlb->translateTiming(req1, context, trans1, mode);
         tlb->translateTiming(req2, context, trans2, mode);
 
-        if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
+        if ((status == ExecutingProcessingLoop || status == ExecutingApplyLoop)
+            && (mode == BaseTLB::Read)) {
             //Launch memoryAccess speculatively
             RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
                                                 0, 0);
@@ -770,7 +771,8 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
             = new DataTranslation<GraphEngine*>(this, state);
         tlb->translateTiming(req, context, translation, mode);
 
-        if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
+        if ((status == ExecutingProcessingLoop || status == ExecutingApplyLoop)
+            && (mode == BaseTLB::Read)) {
             //Launch memoryAccess speculatively
             RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
                                                 0, 0);
@@ -811,8 +813,9 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
     PacketPtr pkt;
     auto it_proc = procAddressCallbacks.find(state->mainReq->getVaddr());
     auto it_apply = applyAddressCallbacks.find(state->mainReq->getVaddr());
-    switch (status) {
-    case ExecutingProcessingLoop:
+
+    if ((status == ExecutingProcessingLoop)
+        && (state->mode == BaseTLB::Read)) {
         if (it_proc == procAddressCallbacks.end()) {
             panic("Can't find address in loop callback");
         }
@@ -839,8 +842,8 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
             DPRINTF(AccelVerbose, "Data response already received.\n");
             recvProcessingLoop(pkt);
         }
-        break;
-    case ExecutingApplyLoop:
+    } else if ((status == ExecutingApplyLoop)
+        && (state->mode == BaseTLB::Read)) {
         if (it_apply == applyAddressCallbacks.end()) {
             panic("Can't find address in loop callback");
         }
@@ -867,8 +870,7 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
             DPRINTF(AccelVerbose, "Data response already received.\n");
             recvApplyLoop(pkt);
         }
-        break;
-    default:
+    } else {
         if (!state->isSplit) {
             sendData(state->mainReq, state->data,
                         state->mode == BaseTLB::Read);
