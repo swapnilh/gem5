@@ -428,8 +428,10 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
                 "Got long mode Permission entry %#016x.\n", (uint64_t)pte);
         /* TODO: Add actual permission checks */
         doWrite = 1;
+        /* Todo - what to insert into TLB? */
         doTLBInsert = false;
         doEndWalk = true;
+        identityMapped = true;
         break;
       case LongPTE:
         DPRINTF(PageTableWalker,
@@ -724,7 +726,7 @@ Walker::WalkerState::recvPacket(PacketPtr pkt)
         walker->levelsWalkedPdf[levelsWalked]++;
         walker->walksCompleted++;
         if (timingFault == NoFault) {
-            if (!walker->forAccel) {
+            if (!walker->forAccel || !identityMapped) {
                 /*
                  * Finish the translation. Now that we know the right entry is
                  * in the TLB, this should work with no memory accesses.

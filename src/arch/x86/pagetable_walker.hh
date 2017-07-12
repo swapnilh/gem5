@@ -98,6 +98,7 @@ namespace X86ISA
             Walker *walker;
             ThreadContext *tc;
             RequestPtr req;
+            bool identityMapped;
             int levelsWalked;
             State state;
             State nextState;
@@ -117,9 +118,9 @@ namespace X86ISA
           public:
             WalkerState(Walker * _walker, BaseTLB::Translation *_translation,
                     RequestPtr _req, bool _isFunctional = false) :
-                        walker(_walker), req(_req), levelsWalked(0),
-                        state(Ready), nextState(Ready), inflight(0),
-                        translation(_translation),
+                        walker(_walker), req(_req), identityMapped(false),
+                        levelsWalked(0), state(Ready), nextState(Ready),
+                        inflight(0), translation(_translation),
                         functional(_isFunctional), timing(false),
                         retrying(false), started(false)
             {

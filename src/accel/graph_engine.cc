@@ -803,29 +803,30 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
         cyclesAddressTranslation[id] += curTick() - addrTransStartTick[id];
     }
 
-    bool identityMapping = true;
+    bool fetchRequired = false;
 
-    if (state->mainReq->getVaddr() != state->mainReq->getPaddr()) {\
-        DPRINTF(Accel, "Identity Mapping did not hold for this txn\n");
-        identityMapping = false;
+    if ((state->mainReq->getVaddr() != state->mainReq->getPaddr()) ||
+        (state->mode == BaseTLB::Write)) {
+        DPRINTF(AccelVerbose, "Identity Mapping did not hold for this txn "
+                "or write request \n");
+        fetchRequired = true;
     }
 
     PacketPtr pkt;
     auto it_proc = procAddressCallbacks.find(state->mainReq->getVaddr());
     auto it_apply = applyAddressCallbacks.find(state->mainReq->getVaddr());
 
-    if ((status == ExecutingProcessingLoop)
-        && (state->mode == BaseTLB::Read)) {
+    if (status == ExecutingProcessingLoop) {
         if (it_proc == procAddressCallbacks.end()) {
             panic("Can't find address in loop callback");
         }
         it_proc->second.translationDone = true;
 
-        if (!identityMapping) {
+        if (fetchRequired) {
             PacketPtr delPkt = it_proc->second.respPkt;
             it_proc->second.respPkt = NULL;
             delete delPkt;
-            DPRINTF(Accel, "Resending data access\n");
+            DPRINTF(AccelVerbose, "Resending data access\n");
             if (!state->isSplit) {
                 sendData(state->mainReq, state->data,
                         state->mode == BaseTLB::Read);
@@ -842,17 +843,16 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
             DPRINTF(AccelVerbose, "Data response already received.\n");
             recvProcessingLoop(pkt);
         }
-    } else if ((status == ExecutingApplyLoop)
-        && (state->mode == BaseTLB::Read)) {
+    } else if (status == ExecutingApplyLoop) {
         if (it_apply == applyAddressCallbacks.end()) {
             panic("Can't find address in loop callback");
         }
 
-        if (!identityMapping) {
+        if (fetchRequired) {
             PacketPtr delPkt = it_apply->second.respPkt;
             it_apply->second.respPkt = NULL;
             delete delPkt;
-            DPRINTF(Accel, "Resending data access\n");
+            DPRINTF(AccelVerbose, "Resending data access\n");
             if (!state->isSplit) {
                 sendData(state->mainReq, state->data,
                         state->mode == BaseTLB::Read);
