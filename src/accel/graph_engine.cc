@@ -836,13 +836,21 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
                 sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
                         state->data, state->mode == BaseTLB::Read);
             }
+        } else {
+            /* For speculative accesses, we created two requests so we
+                delete the one used in translation here */
+            delete state->mainReq;
+            if (state->isSplit) {
+                delete state->sreqLow;
+                delete state->sreqHigh;
+            }
         }
-
         pkt = it_proc->second.respPkt;
         if (pkt) {
             DPRINTF(AccelVerbose, "Data response already received.\n");
             recvProcessingLoop(pkt);
         }
+
     } else if (status == ExecutingApplyLoop) {
         if (it_apply == applyAddressCallbacks.end()) {
             panic("Can't find address in loop callback");
@@ -861,6 +869,14 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
                 assert(state->mode == BaseTLB::Read);
                 sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
                         state->data, state->mode == BaseTLB::Read);
+            }
+        } else {
+            /* For speculative accesses, we created two requests so we
+                delete the one used in translation here */
+            delete state->mainReq;
+            if (state->isSplit) {
+                delete state->sreqLow;
+                delete state->sreqHigh;
             }
         }
 
