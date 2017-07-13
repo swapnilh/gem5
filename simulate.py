@@ -12,8 +12,9 @@ from threading import Timer
 GEM5_DIR = '/nobackup/swapnilh/gem5-accelerator/'
 OUT_DIR = '/nobackup/swapnilh/gem5-accelerator/logs/'
 GEM5_SCRIPT = 'configs/graph_engine/run-accel-fs.py'
-DONT_RUN = ['graph_test.mtx', 'flickr-sorted.mtx',
-            'wikipedia-20070206-sorted.mtx']
+#DONT_RUN = ['graph_test.mtx', 'flickr-sorted.mtx',
+#            'wikipedia-20070206-sorted.mtx']
+DONT_RUN = []
 
 def setup_env():
     os.environ['M5_PATH'] = GEM5_DIR
@@ -52,7 +53,7 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
     header += '''
     cd /home/swapnil/graph_engine/
     make clean
-    make
+    make graph-app-accel-fs
     '''
     f.write(header)
     main = './graph-app-accel-fs /home/swapnil/graph_engine/data/' +\

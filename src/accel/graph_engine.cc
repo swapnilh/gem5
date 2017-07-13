@@ -7,6 +7,7 @@
 #include "debug/AccelVerbose.hh"
 #include "enums/GraphAlgorithm.hh"
 #include "mem/packet_access.hh"
+#include "sim/sim_exit.hh"
 
 using namespace std;
 
@@ -335,6 +336,7 @@ GraphEngine::ProcLoopIteration::finishIteration()
             DPRINTFS(Accel, accel, "Finished Processing Phase [%d/%d]!\n",
                      accel->completedIterations+1, params.maxIterations);
             DPRINTFS(Accel, accel, "Starting Apply Phase!\n");
+            exitSimLoop("dumpstats");
             accel->executeApplyLoop(params);
         }
     }
@@ -636,6 +638,7 @@ GraphEngine::ApplyLoopIteration::stage13()
                          accel->completedIterations+1);
                 params.ActiveVertexCount = accel->UpdatedActiveVertexCount;
                 accel->UpdatedActiveVertexCount = 0;
+                exitSimLoop("dumpstats");
                 accel->executeProcLoop(params);
             }
         }
