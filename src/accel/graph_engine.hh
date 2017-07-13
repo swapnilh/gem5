@@ -114,6 +114,9 @@ class GraphEngine : public BasicPioDevice
         LoopIteration(int step, FuncParams params, GraphEngine* accel) : i(0),
             step(step), params(params), accel(accel)
             {}
+        /* Needed to be able to delete derived class instances */
+        virtual ~LoopIteration()
+            {}
     };
 
     class ProcLoopIteration : public LoopIteration

@@ -390,6 +390,7 @@ GraphEngine::ProcLoopIteration::stage4()
 {
     if (edge.srcId != src.id) {
         finishIteration();
+        delete this;
         return;
     }
     // Load destProp = VertexPropertyTable[edge.destId]
@@ -468,8 +469,11 @@ GraphEngine::ProcLoopIteration::recvResponse(PacketPtr pkt)
             break;
         case 2:
             pkt->writeData((uint8_t*)&edgeId);
-            if (edgeId == INIT_VAL)
+            if (edgeId == INIT_VAL) {
                 finishIteration();
+                delete this;
+                return;
+            }
             else
                 accel->schedule(runStage3, accel->nextCycle());
             break;
@@ -643,6 +647,7 @@ GraphEngine::ApplyLoopIteration::stage13()
             }
         }
     }
+    delete this;
 }
 
 void
