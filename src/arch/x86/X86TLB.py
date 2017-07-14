@@ -49,6 +49,8 @@ class X86PagetableWalker(MemObject):
     system = Param.System(Parent.any, "system object")
     num_squash_per_cycle = Param.Unsigned(4,
             "Number of outstanding walks that can be squashed per cycle")
+    sampling_interval = Param.Unsigned(1000000000, "Sampling Interval");
+    en_sampling = Param.Bool(True, "Enable sampling");
 
 class X86TLB(BaseTLB):
     type = 'X86TLB'

@@ -40,6 +40,7 @@
 #ifndef __ARCH_X86_PAGE_TABLE_WALKER_HH__
 #define __ARCH_X86_PAGE_TABLE_WALKER_HH__
 
+#include <unordered_set>
 #include <vector>
 
 #include "arch/x86/pagetable.hh"
@@ -172,11 +173,32 @@ namespace X86ISA
         MasterID masterId;
 
         // Getting some statistics
+        // Number of completed walks
+        Stats::Scalar walksCompleted;
+
         // Number of inflight walks
         Stats::Vector concurrentWalksPdf;
 
         // Number of levels walked per translation
         Stats::Vector levelsWalkedPdf;
+
+        Stats::Histogram uniquePML4Pages;
+        Stats::Histogram uniquePML4Entries;
+        Stats::Histogram uniquePDPPages;
+        Stats::Histogram uniquePDPEntries;
+        Stats::Histogram uniquePDPages;
+        Stats::Histogram uniquePDEntries;
+        Stats::Histogram uniquePTPages;
+        Stats::Histogram uniquePTEntries;
+
+        std::unordered_set<Addr> PML4Pages;
+        std::unordered_set<Addr> PML4Entries;
+        std::unordered_set<Addr> PDPPages;
+        std::unordered_set<Addr> PDPEntries;
+        std::unordered_set<Addr> PDPages;
+        std::unordered_set<Addr> PDEntries;
+        std::unordered_set<Addr> PTPages;
+        std::unordered_set<Addr> PTEntries;
 
         // Needed for accelerators
         bool forAccel;
@@ -192,6 +214,14 @@ namespace X86ISA
          * Event used to call startWalkWrapper.
          **/
         EventWrapper<Walker, &Walker::startWalkWrapper> startWalkWrapperEvent;
+
+        // Sample page table statistics
+        void samplePT();
+
+        bool enableSampling;
+        unsigned long samplingInterval;
+        /* Sampling event for page table statistics */
+        EventWrapper<Walker, &Walker::samplePT> samplePTEvent;
 
         // Functions for dealing with packets.
         bool recvTimingResp(PacketPtr pkt);
@@ -224,7 +254,8 @@ namespace X86ISA
             funcState(this, NULL, NULL, true), tlb(NULL), sys(params->system),
             masterId(sys->getMasterId(name())), forAccel(false),
             cr3(0), numSquashable(params->num_squash_per_cycle),
-            startWalkWrapperEvent(this)
+            startWalkWrapperEvent(this), enableSampling(params->en_sampling),
+            samplingInterval(params->sampling_interval), samplePTEvent(this)
         {
         }
     };

@@ -60,6 +60,7 @@
 #include "base/trie.hh"
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
+#include "debug/Accel.hh"
 #include "debug/PageTableWalker.hh"
 #include "mem/packet_access.hh"
 #include "mem/request.hh"
@@ -75,6 +76,11 @@ Walker::start(ThreadContext * _tc, BaseTLB::Translation *_translation,
     // another one (i.e. either coalesce or start walk)
     WalkerState * newState = new WalkerState(this, _translation, _req);
     newState->initState(_tc, _mode, sys->isTimingMode());
+
+    /* Schedule the first samplePT event at the first request */
+    if (!samplePTEvent.scheduled() && forAccel && enableSampling)
+        schedule(samplePTEvent, curTick()+samplingInterval);
+
     if (currStates.size()) {
         assert(newState->isTiming());
         DPRINTF(PageTableWalker, "Walks in progress: %d\n", currStates.size());
@@ -219,6 +225,45 @@ Walker::startWalkWrapper()
         currState->startWalk();
 }
 
+void
+Walker::samplePT()
+{
+    DPRINTF(Accel, "Sampling the Page Table stats now!\n");
+/*    uniquePML4Pages[PML4Pages.size()]++;
+    uniquePDPPages[PDPPages.size()]++;
+    uniquePDPages[PDPages.size()]++;
+    uniquePTPages[PTPages.size()]++;
+    uniquePML4Entries[PML4Entries.size()]++;
+    uniquePDPEntries[PDPEntries.size()]++;
+    uniquePDEntries[PDEntries.size()]++;
+    uniquePTEntries[PTEntries.size()]++;
+  */
+
+    /* Top level governs entry into page table,
+        so if it is empty, others are too */
+    if (!PML4Pages.empty()) {
+        uniquePML4Pages.sample(PML4Pages.size());
+        uniquePDPPages.sample(PDPPages.size());
+        uniquePDPages.sample(PDPages.size());
+        uniquePTPages.sample(PTPages.size());
+        uniquePML4Entries.sample(PML4Entries.size());
+        uniquePDPEntries.sample(PDPEntries.size());
+        uniquePDEntries.sample(PDEntries.size());
+        uniquePTEntries.sample(PTEntries.size());
+    }
+    //Clear all the entries to start next sampling epoch
+    PML4Pages.clear();
+    PDPPages.clear();
+    PDPages.clear();
+    PTPages.clear();
+    PML4Entries.clear();
+    PDPEntries.clear();
+    PDEntries.clear();
+    PTEntries.clear();
+
+    schedule(samplePTEvent, curTick()+samplingInterval);
+}
+
 Fault
 Walker::WalkerState::startWalk()
 {
@@ -306,6 +351,8 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
         }
         entry.noExec = pte.nx;
         nextState = LongPDP;
+        walker->PDPPages.insert(nextRead >> 12);
+        walker->PDPEntries.insert(nextRead);
         break;
       case LongPDP:
         DPRINTF(PageTableWalker,
@@ -321,6 +368,8 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             break;
         }
         nextState = LongPD;
+        walker->PDPages.insert(nextRead >> 12);
+        walker->PDEntries.insert(nextRead);
         break;
       case LongPD:
         DPRINTF(PageTableWalker,
@@ -340,6 +389,8 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             nextRead =
                 ((uint64_t)pte & (mask(40) << 12)) + vaddr.longl1 * dataSize;
             nextState = LongPTE;
+            walker->PTPages.insert(nextRead >> 12);
+            walker->PTEntries.insert(nextRead);
             break;
         } else {
             // 2 MB page
@@ -570,6 +621,8 @@ Walker::WalkerState::setupWalk(Addr vaddr)
         state = LongPML4;
         topAddr = (cr3.longPdtb << 12) + addr.longl4 * dataSize;
         enableNX = efer.nxe;
+        walker->PML4Pages.insert(topAddr >> 12);
+        walker->PML4Entries.insert(topAddr);
     } else {
         // We're in some flavor of legacy mode.
         CR4 cr4 = tc->readMiscRegNoEffect(MISCREG_CR4);
@@ -640,6 +693,7 @@ Walker::WalkerState::recvPacket(PacketPtr pkt)
         state = Ready;
         nextState = Waiting;
         walker->levelsWalkedPdf[levelsWalked]++;
+        walker->walksCompleted++;
         if (timingFault == NoFault) {
             /*
              * Finish the translation. Now that we know the right entry is
@@ -740,6 +794,10 @@ Walker::regStats()
 
     MemObject::regStats();
 
+    walksCompleted
+        .name(name() + ".walksCompleted")
+        .desc("Number of completed walks");
+
     concurrentWalksPdf
         .init(16) // TODO FIXME
         .name(name() + ".concurrentWalksPdf")
@@ -749,6 +807,55 @@ Walker::regStats()
         .init(5)
         .name(name() + ".levelsWalkedPdf")
         .desc("Levels of page table traversed for each translation");
+
+    uniquePML4Pages
+        .init(16)
+        .name(name() + ".uniquePML4Pages")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePML4Entries
+        .init(16)
+        .name(name() + ".uniquePML4Entries")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePDPPages
+        .init(16)
+        .name(name() + ".uniquePDPPages")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePDPEntries
+        .init(16)
+        .name(name() + ".uniquePDPEntries")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePDPages
+        .init(16)
+        .name(name() + ".uniquePDPages")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePDEntries
+        .init(16)
+        .name(name() + ".uniquePDEntries")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePTPages
+        .init(16)
+        .name(name() + ".uniquePTPages")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
+    uniquePTEntries
+        .init(16)
+        .name(name() + ".uniquePTEntries")
+        .desc("")
+        .flags(Stats::nozero | Stats::pdf | Stats::oneline);
+
 }
 
 /* end namespace X86ISA */ }
