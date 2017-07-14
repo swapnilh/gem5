@@ -59,6 +59,8 @@ from enum import Enum
 
 from system import MySystem
 
+import os
+
 SimpleOpts.add_option("--script", default='',
                       help="Script to execute in the simulated system")
 
@@ -96,6 +98,8 @@ accel_tlb = X86TLB(forAccel=True, size=opts.tlb_size)
 system.graph_engine = GraphEngine(pio_addr = 0xFFFF8000,
                                 max_unroll=opts.max_unroll,
                                 algorithm=opts.algorithm, tlb=accel_tlb)
+
+#system.graph_engine.tlb.walker.en_sampling = False
 
 # TO-DO, this shouldn't be needed?
 #system.graph_engine_driver = GraphEngineDriver(hardware=system.graph_engine,
@@ -142,7 +146,9 @@ m5.instantiate()
 #system.cpu.workload[0].map(0x10000000, 0x200000000, 4096)
 
 print "Beginning simulation!"
-exit_event = m5.simulate()
+
+# Timeout if ROI not reached! value used is 3x synthetic-s24's startup time
+exit_event = m5.simulate(10436253276578452)
 # While there is still something to do in the guest keep executing.
 # This is needed since we exit for the ROI begin/end
 foundROI = False
@@ -178,7 +184,11 @@ while exit_event.getCause() != "m5_exit instruction encountered":
 #    elif exit_event.getCause() == "dumpstats":
 #        m5.stats.dump()
 #        m5.stats.reset()
-
+    # Got stuck in boot loop
+    elif exit_event.getCause() == "simulate() limit reached":
+        print "Boot timed out"
+        file = open(os.path.join(m5.options.outdir, 'killed.txt'), 'w+')
+        break
     print "Continuing after", exit_event.getCause()
     exit_event = m5.simulate()
 
