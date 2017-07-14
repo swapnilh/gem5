@@ -175,9 +175,9 @@ while exit_event.getCause() != "m5_exit instruction encountered":
     elif exit_event.getCause() == "work items exit count reached":
         end_tick = m5.curTick()
         break
-    elif exit_event.getCause() == "dumpstats":
-        m5.stats.dump()
-        m5.stats.reset()
+#    elif exit_event.getCause() == "dumpstats":
+#        m5.stats.dump()
+#        m5.stats.reset()
 
     print "Continuing after", exit_event.getCause()
     exit_event = m5.simulate()
