@@ -208,6 +208,9 @@ GraphEngine::recvParam(PacketPtr pkt)
     if (paramsLoaded == 9) {
         executeProcLoop(graphParams);
     }
+
+    delete pkt->req;
+    delete pkt;
 }
 
 void
