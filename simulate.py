@@ -54,6 +54,7 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
     cd /home/swapnil/graph_engine/
     make clean
     make graph-app-accel-fs
+    dmesg --clear
     '''
     f.write(header)
     main = './graph-app-accel-fs /home/swapnil/graph_engine/data/' +\
@@ -101,6 +102,8 @@ def main(argv):
                         dest='verbose', default=0)
     parser.add_argument('-v', action="store", dest='variant', type=int,
                         default=0, help='Variant 0=baseline, 1=prot 2=ideal')
+    parser.add_argument('-mem-size', action="store", dest='mem_size',
+                        default='16GB')
     parser.add_argument('-huge-page', action="store", dest='huge_page',
                         type=int, default=0)
     parser.add_argument('-mmu-cache', action="store", dest='mmu_cache',
@@ -122,6 +125,7 @@ def main(argv):
     print "Databases: " + str(options.databases_list)
     print "Output Dir: " +  OUT_DIR + options.out_dir
     print "Iterations: " + str(options.iterations)
+    print "Mem size: " + str(options.mem_size)
     print "Unrolled streams: " + str(options.max_unroll)
     print "Accel TLB size: " + str(options.tlb_size)
     print "MMU Caches: " + str(options.mmu_cache)
@@ -206,6 +210,7 @@ def main(argv):
                 + ' --tlb_size=' + str(options.tlb_size)\
                 + ' --mmu_cache=' + str(options.mmu_cache)\
                 + ' --algorithm=' + workload\
+                + ' --mem-size=' + str(options.mem_size)\
                 + ' --script=' + os.path.join(logs_dir, 'accel.rcS') + '\n'
             f = open(os.path.join(logs_dir, 'runscript'), 'w')
             f.write(run_cmd)

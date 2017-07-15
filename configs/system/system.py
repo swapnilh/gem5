@@ -43,6 +43,9 @@ class MySystem(LinuxX86System):
     SimpleOpts.add_option("--cpus", default=1, type="int",
                           help="Number of CPUs in the system")
 
+    SimpleOpts.add_option("--mem-size", default="16GB", type="string",
+                          help="Memory in the system")
+
     SimpleOpts.add_option("--second_disk",
                           default='linux-bigswap2.img',
                           help="The second disk image to mount (/dev/hdb)")
@@ -58,11 +61,10 @@ class MySystem(LinuxX86System):
         self.clk_domain = SrcClockDomain()
         self.clk_domain.clock = '3GHz'
         self.clk_domain.voltage_domain = VoltageDomain()
-
-        mem_size = '16GB'
+        print "System memory:", opts.mem_size
         self.mem_ranges = [AddrRange('100MB'), # For kernel
                            AddrRange(0xC0000000, size=0x100000), # For I/0
-                           AddrRange(Addr('4GB'), size = mem_size) # All data
+                           AddrRange(Addr('4GB'), size = opts.mem_size) # data
                            ]
         self.mmap_using_noreserve = True
         # Create the main memory bus
