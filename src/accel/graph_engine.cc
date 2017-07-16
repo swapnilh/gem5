@@ -864,9 +864,9 @@ GraphEngine::recvProcessingLoop(PacketPtr pkt)
 
     std::vector<ProcLoopIteration*> waiters = it->second;
     for ( auto waiter = waiters.begin(); waiter != waiters.end(); ++waiter) {
-        ((ProcLoopIteration*)*waiter)->recvResponse(pkt);
         DPRINTF(AccelVerbose, "Address :%#x unset by iter:%s\n",
                 pkt->req->getVaddr(), ((ProcLoopIteration*)*waiter)->name());
+        ((ProcLoopIteration*)*waiter)->recvResponse(pkt);
     }
     procAddressCallbacks.erase(it);
 }
