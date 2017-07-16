@@ -186,9 +186,10 @@ while exit_event.getCause() != "m5_exit instruction encountered":
 #        m5.stats.reset()
     # Got stuck in boot loop
     elif exit_event.getCause() == "simulate() limit reached":
-        print "Boot timed out"
-        file = open(os.path.join(m5.options.outdir, 'killed.txt'), 'w+')
-        break
+        if start_tick == 0:
+            print "Boot timed out"
+            file = open(os.path.join(m5.options.outdir, 'killed.txt'), 'w+')
+            break
     print "Continuing after", exit_event.getCause()
     exit_event = m5.simulate()
 
