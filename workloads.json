@@ -15,7 +15,7 @@
     {   
         "database" : "wikipedia-20070206-sorted.mtx",
         "args"     : "0 0 ",  
-        "iters"    : "10 ",  
+        "iters"    : "5 ",  
         "time"     : ""
     },
     {   
@@ -65,7 +65,7 @@
     {   
         "database" : "synthetic-s24.mtx0",
         "args"     : "0 0 ",
-        "iters"    : "5 ",
+        "iters"    : "1 ",
         "time"     : ""
     },
     {   
@@ -79,37 +79,37 @@
     {   
         "database" : "graph_test.mtx",
         "args"     : "1 0 ",  
-        "iters"    : "2 ",  
+        "iters"    : "1 ",  
         "time"     : ""
     },
     {   
         "database" : "flickr-sorted.mtx",
         "args"     : "0 0 ", 
-        "iters"    : "2 ",  
+        "iters"    : "1 ",  
         "time"     : ""
     },
     {   
         "database" : "wikipedia-20070206-sorted.mtx",
         "args"     : "0 0 ", 
-        "iters"    : "2 ",  
+        "iters"    : "1 ",  
         "time"     : ""
     },
     {   
         "database" : "ljournal-2008-sorted.mtx",
         "args"     : "0 0 ",  
-        "iters"    : "2 ",  
+        "iters"    : "1 ",  
         "time"     : ""
     },
     {   
         "database" : "synthetic-s24.mtx0",
         "args"     : "0 0 ",
-        "iters"    : "2 ",
+        "iters"    : "1 ",
         "time"     : ""
     },
     {   
         "database" : "synthetic-s25.mtx0",
         "args"     : "0 0 ",
-        "iters"    : "2 ",
+        "iters"    : "1 ",
         "time"     : ""
     }
     ],

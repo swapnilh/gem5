@@ -99,7 +99,7 @@ system.graph_engine = GraphEngine(pio_addr = 0xFFFF8000,
                                 max_unroll=opts.max_unroll,
                                 algorithm=opts.algorithm, tlb=accel_tlb)
 
-#system.graph_engine.tlb.walker.en_sampling = False
+system.graph_engine.tlb.walker.en_sampling = False
 
 # TO-DO, this shouldn't be needed?
 #system.graph_engine_driver = GraphEngineDriver(hardware=system.graph_engine,
