@@ -736,21 +736,23 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
     if (split_addr > addr) {
         if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
             //Launch memoryAccess speculatively
-            RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
-                                                0, 0);
-            spec_req->setContext(id);
-            spec_req->taskId(taskId);
-            spec_req->setFlags(Request::UNCACHEABLE);
+//            RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
+//                                                0, 0);
+//            spec_req->setContext(id);
+//            spec_req->taskId(taskId);
+//            spec_req->setFlags(Request::UNCACHEABLE);
 
-            RequestPtr spec_req1, spec_req2;
-            spec_req->splitOnVaddr(split_addr, spec_req1, spec_req2);
+//            RequestPtr spec_req1, spec_req2;
+//            spec_req->splitOnVaddr(split_addr, spec_req1, spec_req2);
             // Paddr for main request has to be after splitOnVaddr to avoid
             // assert
-            spec_req->setPaddr(addr);
-            spec_req1->setPaddr(addr);
-            spec_req2->setPaddr(spec_req2->getVaddr());
+            RequestPtr req1, req2;
+            req->splitOnVaddr(split_addr, req1, req2);
+            req->setPaddr(addr);
+            req1->setPaddr(addr);
+            req2->setPaddr(req2->getVaddr());
             assert(mode == BaseTLB::Read);
-            sendSplitData(spec_req1, spec_req2, spec_req,
+            sendSplitData(req1, req2, req,
                     data, mode == BaseTLB::Read);
         }
         else {
@@ -769,13 +771,13 @@ GraphEngine::accessMemory(Addr addr, int size, BaseTLB::Mode mode, uint8_t
     } else {
         if (status == ExecutingProcessingLoop || status == ExecutingApplyLoop){
             //Launch memoryAccess speculatively
-            RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
-                                                0, 0);
-            spec_req->setContext(id);
-            spec_req->taskId(taskId);
-            spec_req->setFlags(Request::UNCACHEABLE);
-            spec_req->setPaddr(addr);
-            sendData(spec_req, data, mode == BaseTLB::Read);
+//            RequestPtr spec_req = new Request(-1, addr, size, 0, masterID, 0,
+//                                                0, 0);
+//            spec_req->setContext(id);
+//            spec_req->taskId(taskId);
+//            spec_req->setFlags(Request::UNCACHEABLE);
+            req->setPaddr(addr);
+            sendData(req, data, mode == BaseTLB::Read);
         }
         else {
 
@@ -838,6 +840,14 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
                 sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
                         state->data, state->mode == BaseTLB::Read);
             }
+        } else {
+            /* For speculative accesses, we created two requests so we
+                delete the one used in translation here */
+            delete state->mainReq;
+            if (state->isSplit) {
+                delete state->sreqLow;
+                delete state->sreqHigh;
+            }
         }
 
         pkt = it_proc->second.respPkt;
@@ -864,6 +874,14 @@ GraphEngine::finishTranslation(WholeTranslationState *state)
                 assert(state->mode == BaseTLB::Read);
                 sendSplitData(state->sreqLow, state->sreqHigh, state->mainReq,
                         state->data, state->mode == BaseTLB::Read);
+            }
+        } else {
+            /* For speculative accesses, we created two requests so we
+                delete the one used in translation here */
+            delete state->mainReq;
+            if (state->isSplit) {
+                delete state->sreqLow;
+                delete state->sreqHigh;
             }
         }
 
