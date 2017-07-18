@@ -38,6 +38,10 @@ def execute(cmd, op_dir, timeout_sec):
 
 def main(argv):
     setup_env()
+    parser = argparse.ArgumentParser(description='Runscript for gem5-accel')
+    parser.add_argument('-f', action="store_true", dest='fast', type=bool,
+                        default=False)
+    options = parser.parse_args()
     os.chdir(GEM5_DIR)
     branch = ''
     cmd = 'git branch'
@@ -47,12 +51,15 @@ def main(argv):
             branch = line.split(' ')[1]
     print 'Currently on branch:', branch
 
+    binary = 'gem5.opt'
+    if options.fast:
+        binary = 'gem5.fast'
     if 'prot-only' in branch:
-        cmd = 'scons build/X86-prot/gem5.opt -j4'
+        cmd = 'scons build/X86-prot/' + binary + ' -j4'
     elif 'accel-ideal' in branch:
-        cmd = 'scons build/X86-ideal/gem5.opt -j4'
+        cmd = 'scons build/X86-ideal/' + binary + ' -j4'
     elif 'devel/accel' in branch:
-        cmd = 'scons build/X86/gem5.opt -j4'
+        cmd = 'scons build/X86/' + binary + ' -j4'
     else:
         print 'Not in a legal branch!'
         sys.exit()

@@ -154,6 +154,7 @@ exit_event = m5.simulate(10436253276578452)
 foundROI = False
 end_tick = 0
 start_tick = 0
+file = open(os.path.join(m5.options.outdir, 'running.txt'), 'w+')
 while exit_event.getCause() != "m5_exit instruction encountered":
 
     print "Exited because", exit_event.getCause()
@@ -179,6 +180,7 @@ while exit_event.getCause() != "m5_exit instruction encountered":
         m5.stats.reset()
         foundROI = True
     elif exit_event.getCause() == "work items exit count reached":
+        os.remove(os.path.join(m5.options.outdir, 'running.txt'))
         end_tick = m5.curTick()
         break
 #    elif exit_event.getCause() == "dumpstats":
