@@ -39,8 +39,7 @@ def execute(cmd, op_dir, timeout_sec):
 def main(argv):
     setup_env()
     parser = argparse.ArgumentParser(description='Runscript for gem5-accel')
-    parser.add_argument('-f', action="store_true", dest='fast', type=bool,
-                        default=False)
+    parser.add_argument('-f', action="store_true", dest='fast', default=False)
     options = parser.parse_args()
     os.chdir(GEM5_DIR)
     branch = ''

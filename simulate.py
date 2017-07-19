@@ -20,7 +20,7 @@ def setup_env():
     os.environ['M5_PATH'] = GEM5_DIR
 
 def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
-                    args):
+                    args, mem_size):
     header = '''#!/bin/bash
     echo 2 > /proc/sys/kernel/randomize_va_space
     echo never > /sys/kernel/mm/transparent_hugepage/enabled
@@ -42,14 +42,25 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
         export MALLOC_MMAP_THRESHOLD_=1
         '''
     if huge_page == 1:
-        header += '''
-        cd /home/swapnil/
-        ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:6500
-        ./libhugetlbfs/obj/hugeadm --pool-list
-        export LD_PRELOAD=libhugetlbfs.so
-        export HUGETLB_MORECORE=yes
-        export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
-        '''
+        if mem_size == '32GB':
+            header += '''
+            cd /home/swapnil/
+            ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:6500
+            ./libhugetlbfs/obj/hugeadm --pool-list
+            export LD_PRELOAD=libhugetlbfs.so
+            export HUGETLB_MORECORE=yes
+            export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
+            '''
+        else:
+            header += '''
+            cd /home/swapnil/
+            ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:1000
+            ./libhugetlbfs/obj/hugeadm --pool-list
+            export LD_PRELOAD=libhugetlbfs.so
+            export HUGETLB_MORECORE=yes
+            export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
+            '''
+
     header += '''
     cd /home/swapnil/graph_engine/
     make clean
@@ -108,6 +119,8 @@ def main(argv):
                         type=int, default=0)
     parser.add_argument('-mmu-cache', action="store", dest='mmu_cache',
                         type=int, default=0)
+    parser.add_argument('-mmu-size', action="store", dest='mmu_size',
+                        default='8KB')
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
@@ -129,6 +142,7 @@ def main(argv):
     print "Unrolled streams: " + str(options.max_unroll)
     print "Accel TLB size: " + str(options.tlb_size)
     print "MMU Caches: " + str(options.mmu_cache)
+    print "MMU Cache Size: " + str(options.mmu_size)
     print "Huge (2 MB) Pages: " + str(options.huge_page)
     print "Timeout: " + str(options.timeout)
     print "Debug flags: " + options.debug_flags
@@ -175,7 +189,8 @@ def main(argv):
             f = open(os.path.join(logs_dir, 'accel.rcS'), 'w')
             write_rcs_file(f, workload, parameters['database'],\
                             iters, options.variant,
-                            options.huge_page, parameters['args'])
+                            options.huge_page, parameters['args'],
+                            options.mem_size)
             f.close()
 
 #             Place a copy in the logs folder
@@ -193,11 +208,11 @@ def main(argv):
                 binary = './build/X86/gem5.opt '
             else:
                 if options.variant == 0:
-                    binary = './build/X86/gem5.opt '
+                    binary = './build/X86/gem5.fast '
                 elif options.variant == 1:
-                    binary = './build/X86-prot/gem5.opt '
+                    binary = './build/X86-prot/gem5.fast '
                 elif options.variant == 2:
-                    binary = './build/X86-ideal/gem5.opt '
+                    binary = './build/X86-ideal/gem5.fast '
                 else:
                     print 'Unsupported Variant. Choose from 0-2!'
                     print 'Variant 0=baseline, 1=prot 2=ideal'
@@ -209,6 +224,7 @@ def main(argv):
                 + ' --max_unroll=' + str(options.max_unroll)\
                 + ' --tlb_size=' + str(options.tlb_size)\
                 + ' --mmu_cache=' + str(options.mmu_cache)\
+                + ' --mmu_size=' + str(options.mmu_size)\
                 + ' --algorithm=' + workload\
                 + ' --mem-size=' + str(options.mem_size)\
                 + ' --script=' + os.path.join(logs_dir, 'accel.rcS') + '\n'

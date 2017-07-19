@@ -142,8 +142,13 @@ class MMUCache(Cache):
     tgts_per_mshr = 12
     writeback_clean = True
 
-    def __init__(self):
+    SimpleOpts.add_option('--mmu_size', help="MMU cache size."
+                          "Default: %s" % size)
+    def __init__(self, opts=None):
         super(MMUCache, self).__init__()
+        if not opts or not opts.mmu_size:
+            return
+        self.size = opts.mmu_size
 
     def connectCPU(self, cpu):
         """Connect the CPU itb and dtb to the cache

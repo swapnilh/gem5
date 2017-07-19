@@ -110,7 +110,7 @@ system.graph_engine.memory_port = system.membus.slave
 system.graph_engine.pio = system.membus.master
 
 if opts.mmu_cache == 1:
-    system.graph_engine.mmucache = MMUCache()
+    system.graph_engine.mmucache = MMUCache(opts)
     system.graph_engine.mmucache.cpu_side = system.graph_engine.tlb.walker.port
     system.graph_engine.mmucache.mem_side = system.membus.slave
 else:
@@ -147,14 +147,14 @@ m5.instantiate()
 
 print "Beginning simulation!"
 
-# Timeout if ROI not reached! value used is 3x synthetic-s24's startup time
-exit_event = m5.simulate(10436253276578452)
 # While there is still something to do in the guest keep executing.
 # This is needed since we exit for the ROI begin/end
 foundROI = False
 end_tick = 0
 start_tick = 0
 file = open(os.path.join(m5.options.outdir, 'running.txt'), 'w+')
+# Timeout if ROI not reached! value used is 3x synthetic-s24's startup time
+exit_event = m5.simulate(10436253276578452)
 while exit_event.getCause() != "m5_exit instruction encountered":
 
     print "Exited because", exit_event.getCause()
