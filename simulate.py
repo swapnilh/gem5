@@ -120,7 +120,7 @@ def main(argv):
     parser.add_argument('-mmu-cache', action="store", dest='mmu_cache',
                         type=int, default=0)
     parser.add_argument('-mmu-size', action="store", dest='mmu_size',
-                        default='8KB')
+                        default='8kB')
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
