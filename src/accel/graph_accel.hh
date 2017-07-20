@@ -111,4 +111,21 @@ class PageRank : public GraphAccel
 
 };
 
+class CF : public GraphAccel
+{
+  public:
+    float lambda = 0.15;
+    float gamma = 0.15;
+    VertexProperty processEdge(VertexProperty weight, VertexProperty
+                                srcProp, VertexProperty dstProp) override;
+
+    VertexProperty reduce(VertexProperty temp,
+                            VertexProperty result) override;
+
+    VertexProperty apply(VertexProperty oldProp,
+                        VertexProperty tempProp,
+                        VertexProperty vConstProp) override;
+
+};
+
 #endif //__ACCEL_GRAPH_ACCEL_HH__

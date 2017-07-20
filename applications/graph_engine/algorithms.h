@@ -94,3 +94,20 @@ class PageRank: public GraphApplication {
     void exec_on_host () override {
     }
 };
+
+class CF: public GraphApplication {
+
+  private:
+    const NodeId SOURCE = 1;
+
+  public:
+    CF (int maxIterations) : GraphApplication(maxIterations)
+        {}
+
+    // This function is algo-specific
+    void populate_params() override;
+
+    // Simple, serial implementation to compare with
+    void exec_on_host () override {
+    }
+};

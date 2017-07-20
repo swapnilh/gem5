@@ -32,10 +32,10 @@ GraphEngine::GraphEngine(const Params *p) :
         case Enums::GraphAlgorithm::PageRank:
             algorithm = new PageRank();
             break;
-/*        case Enums::GraphAlgorithm::TriCount:
-            algorithm = new SSSP();
-            break;
         case Enums::GraphAlgorithm::CF:
+            algorithm = new CF();
+            break;
+/*        case Enums::GraphAlgorithm::TriCount:
             algorithm = new SSSP();
             break;
         case Enums::GraphAlgorithm::BC:

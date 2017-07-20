@@ -76,3 +76,27 @@ PageRank::apply(VertexProperty oldProp,
     // Hack - vConstProp holds Vdeg
     return (0.15 + 0.85*tempProp)/vConstProp;
 }
+
+VertexProperty
+CF::processEdge(VertexProperty weight, VertexProperty
+                    srcProp, VertexProperty dstProp)
+{
+    // Hack - weight holds the outgoing degree of source
+    return (weight -srcProp*dstProp)*srcProp - lambda*dstProp;
+}
+
+VertexProperty
+CF::reduce(VertexProperty tempProp,
+                VertexProperty result)
+{
+    return tempProp + result;
+}
+
+VertexProperty
+CF::apply(VertexProperty oldProp,
+            VertexProperty tempProp,
+            VertexProperty vConstProp)
+{
+    // Hack - vConstProp holds Vdeg
+    return oldProp + gamma*tempProp;
+}

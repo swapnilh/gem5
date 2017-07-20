@@ -208,7 +208,7 @@ def main(argv):
                 binary = './build/X86/gem5.opt '
             else:
                 if options.variant == 0:
-                    binary = './build/X86/gem5.fast '
+                    binary = './build/X86/gem5.fast'
                 elif options.variant == 1:
                     binary = './build/X86-prot/gem5.fast '
                 elif options.variant == 2:

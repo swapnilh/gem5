@@ -106,4 +106,21 @@ PageRank::populate_params() {
     }
 }
 
-
+void
+CF::populate_params () {
+    ActiveVertexCount = 0;
+    for (NodeId i=1; i<=VertexCount; i++) {
+        VertexPropertyTable[i] = INF;
+        VTempPropertyTable[i]  = 0;
+        VConstPropertyTable[i] = INF;
+        SerialVPropertyTable[i] = INF;
+        ActiveVertexTable[i] = {0, INF};
+    }
+    for (NodeId i=1; i<=VertexCount; i++) {
+        if (EdgeIdTable[i] != INIT_VAL)
+            ActiveVertexTable[++ActiveVertexCount] = {i, INF};
+    }
+    VertexPropertyTable[SOURCE] = 0;
+    SerialVPropertyTable[SOURCE] = 0;
+    ActiveVertexTable[SOURCE].property = 0;
+}

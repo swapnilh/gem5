@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
         app = new BFS(maxIterations);
     } else if (!strcmp(workload, "PageRank")) {
         app = new PageRank(maxIterations);
+    } else if (!strcmp(workload, "CF")) {
+        app = new CF(maxIterations);
     } else {
         std::cout << "Error! " << workload << " not available.\n";
         exit(1);
