@@ -490,6 +490,11 @@ TLB::regStats()
         .name(name() + ".wrMisses")
         .desc("TLB misses on write requests");
 
+   missRatio
+        .name(name() + ".missRatio")
+        .desc("TLB miss rates");
+
+  missRatio = (rdMisses + wrMisses) / (rdAccesses + wrAccesses);
 }
 
 void

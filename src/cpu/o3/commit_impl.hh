@@ -286,6 +286,30 @@ DefaultCommit<Impl>::regStats()
         .name(name() + ".bw_lim_events")
         .desc("number cycles where commit BW limit reached")
         ;
+
+    slotsMispredicted
+        .name(name() + ".slotsMispredicted")
+        .desc("vacant slots due to mispredicted branches.");
+
+    slotsFetchDelayed
+        .name(name() + ".slotsFetchDelayed")
+        .desc("vacant slots due to delay in instruction fetching.");
+
+    slotsMemoryDelayed
+        .name(name() + ".slotsMemoryDelayed")
+        .desc("vacant slots due to delay in accessing memory.");
+
+    slotsTranslationDelayed
+        .name(name() + ".slotsTranslationDelayed")
+        .desc("vacant slots due to delay in address translation.");
+
+    slotsExecutionDelayed
+        .name(name() + ".slotsExecutionDelayed")
+        .desc("vacant slots due to delay in execution of the instruction.");
+
+    slotsMiscDelayed
+        .name(name() + ".slotsMiscDelayed")
+        .desc("vacant slots due to unknown delays in execution.");
 }
 
 template <class Impl>
@@ -658,8 +682,10 @@ DefaultCommit<Impl>::tick()
     wroteToTimeBuffer = false;
     _nextStatus = Inactive;
 
-    if (activeThreads->empty())
+    if (activeThreads->empty()){
+        slotsMiscDelayed += commitWidth;
         return;
+    }
 
     list<ThreadID>::iterator threads = activeThreads->begin();
     list<ThreadID>::iterator end = activeThreads->end();
@@ -926,6 +952,8 @@ DefaultCommit<Impl>::commit()
 
         // Try to commit any instructions.
         commitInsts();
+    } else {
+        slotsMispredicted += commitWidth;
     }
 
     //Check for any activity
@@ -960,7 +988,6 @@ DefaultCommit<Impl>::commit()
             toIEW->commitInfo[tid].freeROBEntries = rob->numFreeEntries(tid);
             wroteToTimeBuffer = true;
         }
-
     }
 }
 
@@ -993,13 +1020,32 @@ DefaultCommit<Impl>::commitInsts()
 
         ThreadID commit_thread = getCommittingThread();
 
-        if (commit_thread == -1 || !rob->isHeadReady(commit_thread))
+        if (commit_thread == -1) {
+            slotsMispredicted += (commitWidth - num_committed);
             break;
+        }
 
         head_inst = rob->readHeadInst(commit_thread);
+        if (!rob->isHeadReady(commit_thread)) {
+          if (head_inst) {
+              if (!head_inst->isMemRef()) {
+                  slotsExecutionDelayed += (commitWidth - num_committed);
+              }
+              else {
+                  if (head_inst->translationCompleted())
+                      slotsMemoryDelayed += (commitWidth - num_committed);
+                  else
+                      slotsTranslationDelayed += (commitWidth - num_committed);
+              }
+          }
+          else {
+            slotsFetchDelayed += (commitWidth - num_committed);
+          }
+
+          break;
+        }
 
         ThreadID tid = head_inst->threadNumber;
-
         assert(tid == commit_thread);
 
         DPRINTF(Commit, "Trying to commit head instruction, [sn:%i] [tid:%i]\n",
@@ -1102,6 +1148,7 @@ DefaultCommit<Impl>::commitInsts()
                     if (count > 1) {
                         DPRINTF(Commit,
                                 "PC skip function event, stopping commit\n");
+                        slotsMiscDelayed += (commitWidth - num_committed);
                         break;
                     }
                 }
@@ -1117,6 +1164,10 @@ DefaultCommit<Impl>::commitInsts()
                     onInstBoundary && cpu->checkInterrupts(cpu->tcBase(0)))
                     squashAfter(tid, head_inst);
             } else {
+                if (head_inst->translationCompleted())
+                    slotsMemoryDelayed += (commitWidth - num_committed);
+                else
+                    slotsTranslationDelayed += (commitWidth - num_committed);
                 DPRINTF(Commit, "Unable to commit head instruction PC:%s "
                         "[tid:%i] [sn:%i].\n",
                         head_inst->pcState(), tid ,head_inst->seqNum);

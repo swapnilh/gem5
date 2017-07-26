@@ -32,6 +32,7 @@ from m5.objects import *
 from m5.util import convert
 from fs_tools import *
 from caches import *
+from cpu import *
 import os
 
 class MySystem(LinuxX86System):
@@ -135,7 +136,7 @@ class MySystem(LinuxX86System):
                                               switched_out = True)
                               for i in range(self._opts.cpus)]
 
-        self.timingCpu = [DerivO3CPU(cpu_id = i,
+        self.timingCpu = [HighPerformanceCPU(cpu_id = i,
                                      switched_out = True)
                    for i in range(self._opts.cpus)]
 
@@ -160,9 +161,9 @@ class MySystem(LinuxX86System):
             # Create an L1 instruction and data cache
             cpu.icache = L1ICache(self._opts)
             cpu.dcache = L1DCache(self._opts)
-            cpu.mmucache = MMUCache()
+            cpu.mmucache = MMUCache(self._opts)
 
-            # Connect the instruction and data caches to the CPU
+            # Connect the instruction and dat
             cpu.icache.connectCPU(cpu)
             cpu.dcache.connectCPU(cpu)
             cpu.mmucache.connectCPU(cpu)

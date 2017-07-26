@@ -107,6 +107,7 @@ namespace X86ISA
         Stats::Scalar wrAccesses;
         Stats::Scalar rdMisses;
         Stats::Scalar wrMisses;
+        Stats::Formula missRatio;
 
         Fault translateInt(RequestPtr req, ThreadContext *tc);
 

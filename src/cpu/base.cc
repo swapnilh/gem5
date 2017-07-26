@@ -424,6 +424,16 @@ BaseCPU::regStats()
         .desc("number of work items this cpu completed")
         ;
 
+    numAddrTransCycles
+        .name(name() + ".numAddrTransCycles")
+        .desc("number of cycles lost to Address Translation")
+        ;
+
+    numMemAccCycles
+        .name(name() + ".numMemAccCycles")
+        .desc("number of cpu cycles simulated")
+        ;
+
     int size = threadContexts.size();
     if (size > 1) {
         for (int i = 0; i < size; ++i) {

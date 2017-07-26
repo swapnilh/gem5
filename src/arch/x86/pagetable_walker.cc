@@ -799,7 +799,7 @@ Walker::regStats()
         .desc("Number of completed walks");
 
     concurrentWalksPdf
-        .init(16) // TODO FIXME
+        .init(128) // TODO FIXME
         .name(name() + ".concurrentWalksPdf")
         .desc("Outstanding walks when a new one starts");
 

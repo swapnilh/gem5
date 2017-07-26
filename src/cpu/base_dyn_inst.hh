@@ -877,6 +877,7 @@ Fault
 BaseDynInst<Impl>::initiateMemRead(Addr addr, unsigned size,
                                    Request::Flags flags)
 {
+    // MAKE CHANGES HERE!
     instFlags[ReqMade] = true;
     Request *req = NULL;
     Request *sreqLow = NULL;

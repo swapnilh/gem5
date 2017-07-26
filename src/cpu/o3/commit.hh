@@ -491,14 +491,13 @@ class DefaultCommit
     /** Updates commit stats based on this instruction. */
     void updateComInstStats(DynInstPtr &inst);
 
-    /** Stat for the total number of squashed instructions discarded by commit.
-     */
+    /** Total number of squashed instructions discarded by commit. */
     Stats::Scalar commitSquashedInsts;
-    /** Stat for the total number of times commit has had to stall due to a non-
-     * speculative instruction reaching the head of the ROB.
+    /** Total number of times commit has had to stall due to a non-speculative
+     *  instruction reaching the head of the ROB.
      */
     Stats::Scalar commitNonSpecStalls;
-    /** Stat for the total number of branch mispredicts that caused a squash. */
+    /** Total number of branch mispredicts that caused a squash. */
     Stats::Scalar branchMispredicts;
     /** Distribution of the number of committed instructions each cycle. */
     Stats::Distribution numCommittedDist;
@@ -528,6 +527,20 @@ class DefaultCommit
 
     /** Number of cycles where the commit bandwidth limit is reached. */
     Stats::Scalar commitEligibleSamples;
+
+    /** Number of commit slots not utilized due to a mispredicted branch */
+    Stats::Scalar slotsMispredicted;
+    /** Number of commit slots not utilized due to delay in instruction
+        fetching */
+    Stats::Scalar slotsFetchDelayed;
+    /** Number of commit slots not utilized due to delay in accessing memory
+        for load / store. */
+    Stats::Scalar slotsMemoryDelayed;
+    Stats::Scalar slotsTranslationDelayed;
+    /** Number of commit slots not utilized due to delay in execution. */
+    Stats::Scalar slotsExecutionDelayed;
+    /** Number of commit slots not utilized due to unknown reasons. */
+    Stats::Scalar slotsMiscDelayed;
 };
 
 #endif // __CPU_O3_COMMIT_HH__

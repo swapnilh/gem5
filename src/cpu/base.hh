@@ -575,6 +575,8 @@ class BaseCPU : public MemObject
     Stats::Scalar numCycles;
     Stats::Scalar numWorkItemsStarted;
     Stats::Scalar numWorkItemsCompleted;
+    Stats::Scalar numAddrTransCycles;
+    Stats::Scalar numMemAccCycles;
 
   private:
     std::vector<AddressMonitor> addressMonitor;
