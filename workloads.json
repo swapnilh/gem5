@@ -157,6 +157,18 @@
         "args"     : "1 0 ",  
         "iters"    : "1 ",  
         "time"     : ""
+    },
+    {   
+        "database" : "bip1.mtx",
+        "args"     : "1 0 ",  
+        "iters"    : "1 ",  
+        "time"     : ""
+    },
+    {   
+        "database" : "bip2.mtx",
+        "args"     : "1 0 ",  
+        "iters"    : "1 ",  
+        "time"     : ""
     }
     ]
 }
