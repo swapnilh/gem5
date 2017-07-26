@@ -105,7 +105,7 @@ class MySystem(LinuxX86System):
         # Set up the interrupt controllers for the system (x86 specific)
         self.setupInterrupts()
 
-        self.createMemoryControllersDDR3()
+        self.createMemoryControllersDD4()
 
         if self._host_parallel:
             # To get the KVM CPUs to run on different host CPUs
@@ -199,8 +199,8 @@ class MySystem(LinuxX86System):
             cpu.interrupts[0].int_slave = self.membus.master
 
 
-    def createMemoryControllersDDR3(self):
-        self._createMemoryControllers(2, DDR3_1600_8x8)
+    def createMemoryControllersDDR4(self):
+        self._createMemoryControllers(2, DDR4_2400_16x4)
 
     def _createMemoryControllers(self, num, cls):
         kernel_controller = self._createKernelMemoryController(cls)

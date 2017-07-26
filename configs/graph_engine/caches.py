@@ -108,7 +108,7 @@ class L2Cache(Cache):
     """Simple L2 Cache with default values"""
 
     # Default parameters
-    size = '256kB'
+    size = '2MB'
     assoc = 8
     tag_latency = 20
     data_latency = 20
