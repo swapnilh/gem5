@@ -120,7 +120,7 @@ def main(argv):
     parser.add_argument('-mmu-cache', action="store", dest='mmu_cache',
                         type=int, default=0)
     parser.add_argument('-mmu-size', action="store", dest='mmu_size',
-                        default='8kB')
+                        default='1kB')
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
     parser.add_argument('-debug-start', action="store", dest='debug_start',
@@ -208,7 +208,7 @@ def main(argv):
                 binary = './build/X86/gem5.opt '
             else:
                 if options.variant == 0:
-                    binary = './build/X86/gem5.fast'
+                    binary = './build/X86/gem5.opt'
                 elif options.variant == 1:
                     binary = './build/X86-prot/gem5.fast '
                 elif options.variant == 2:
