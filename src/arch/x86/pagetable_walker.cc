@@ -389,6 +389,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             nextRead =
                 ((uint64_t)pte & (mask(40) << 12)) + vaddr.longl1 * dataSize;
             nextState = LongPTE;
+            uncacheable = true;
             walker->PTPages.insert(nextRead >> 12);
             walker->PTEntries.insert(nextRead);
             break;
@@ -563,6 +564,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
         endWalk();
     } else {
         DPRINTF(PageTableWalker, "Next read is %#x\n", nextRead);
+        DPRINTF(PageTableWalker, "Uncacheable: %d\n", uncacheable);
         PacketPtr oldRead = read;
         //If we didn't return, we're setting up another read.
         Request::Flags flags = oldRead->req->getFlags();
