@@ -131,6 +131,31 @@ class L2Cache(Cache):
     def connectMemSideBus(self, bus):
         self.mem_side = bus.slave
 
+class BCCache(Cache):
+    """Simple BorderControl Cache with default values"""
+
+    # Default parameters
+    size = '1kB'
+    assoc = 4
+    tag_latency = 1
+    data_latency = 1
+    response_latency = 1
+    mshrs = 20
+    tgts_per_mshr = 12
+
+    def __init__(self, opts=None):
+        super(BCCache, self).__init__()
+        if not opts or not opts.bcc_size:
+            return
+        self.size = opts.bcc_size
+
+    def connectCPUSideBus(self, bus):
+        self.cpu_side = bus.master
+
+    def connectMemSideBus(self, bus):
+        self.mem_side = bus.slave
+
+
 class MMUCache(Cache):
     # Default parameters
     size = '8kB'

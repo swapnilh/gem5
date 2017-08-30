@@ -80,6 +80,12 @@ SimpleOpts.add_option("--tlb_size", type='int',
 SimpleOpts.add_option("--mmu_cache", type='int',
                       default=0, help ="mmu-cache for accelerator. Default:0")
 
+SimpleOpts.add_option("--bc_cache", type='int',
+                      default=0, help ="Border Control Cache. Default:0")
+
+SimpleOpts.add_option('--bcc_size', help="BC cache size.",
+                      default='1kB')
+
 # Set the usage message to display
 SimpleOpts.set_usage("usage: %prog [options]")
 
@@ -106,15 +112,26 @@ system.graph_engine.tlb.walker.en_sampling = False
 #                                            filename="graph_engine")
 
 # Hook up the accelerator
-system.graph_engine.memory_port = system.membus.slave
+if opts.bc_cache == 0:
+    system.graph_engine.memory_port = system.membus.slave
+else:
+    system.bcc = BCCache(opts)
+#    system.bcc.cpu_side = system.graph_engine.memory_port
+    system.bcc.mem_side = system.membus.slave
+    system.bc_bus = NoncoherentXBar(width=64, forward_latency = 1,
+        frontend_latency=1, response_latency=1)
+    system.bc_bus.master = system.bcc.cpu_side
+    system.bc_bus.slave = system.graph_engine.memory_port
+    system.bc_bus.slave = system.graph_engine.tlb.walker.port
+
 system.graph_engine.pio = system.membus.master
 
 if opts.mmu_cache == 1:
     system.graph_engine.mmucache = MMUCache(opts)
     system.graph_engine.mmucache.cpu_side = system.graph_engine.tlb.walker.port
     system.graph_engine.mmucache.mem_side = system.membus.slave
-else:
-    system.graph_engine.tlb.walker.port = system.membus.slave
+#else:
+#    system.graph_engine.tlb.walker.port = system.membus.slave
 
 # Use CPU mmucache
 #system.cpu[0].mmucache.mmubus.slave = system.graph_engine.tlb.walker.port
@@ -183,9 +200,8 @@ while exit_event.getCause() != "m5_exit instruction encountered":
         os.remove(os.path.join(m5.options.outdir, 'running.txt'))
         end_tick = m5.curTick()
         break
-#    elif exit_event.getCause() == "dumpstats":
-#        m5.stats.dump()
-#        m5.stats.reset()
+    elif exit_event.getCause() == "dumpstats":
+        break
     # Got stuck in boot loop
     elif exit_event.getCause() == "simulate() limit reached":
         if start_tick == 0:

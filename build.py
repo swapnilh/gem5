@@ -59,6 +59,8 @@ def main(argv):
         cmd = 'scons build/X86-ideal/' + binary + ' -j4'
     elif 'devel/accel' in branch:
         cmd = 'scons build/X86/' + binary + ' -j4'
+    elif 'devel/prot-table-bc' in branch:
+        cmd = 'scons build/X86-prot-bc/' + binary + ' -j4'
     else:
         print 'Not in a legal branch!'
         sys.exit()
