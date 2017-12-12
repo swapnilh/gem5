@@ -64,9 +64,12 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
     header += '''
     cd /home/swapnil/graph_engine/
     make clean
-    make graph-app-accel-fs
-    dmesg --clear
     '''
+    if variant < 3:
+        header += 'make graph-app-accel-fs\n'
+    else:
+        header += 'make graph-app-accel-fs CFLAGS_BC="-DBORDER_CONTROL"\n'
+    header += 'dmesg --clear\n'
     f.write(header)
     main = './graph-app-accel-fs /home/swapnil/graph_engine/data/' +\
            database + ' ' + workload + ' ' + str(iterations) + ' ' + args\
@@ -217,7 +220,7 @@ def main(argv):
                 if options.variant == 0:
                     binary = './build/X86/gem5.opt'
                 elif options.variant == 1:
-                    binary = './build/X86-prot/gem5.fast '
+                    binary = './build/X86-prot/gem5.opt'
                 elif options.variant == 2:
                     binary = './build/X86-ideal/gem5.fast '
                 elif options.variant == 3:
