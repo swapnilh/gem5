@@ -362,15 +362,30 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
         pte.a = 1;
         entry.writable = entry.writable && pte.w;
         entry.user = entry.user && pte.u;
-        if (badNX || !pte.p) {
+        if (!pte.ps) {
+            // 2 MB or 4 KB page
+            if (badNX || !pte.p) {
+                doEndWalk = true;
+                fault = pageFault(pte.p);
+                break;
+            }
+            nextState = LongPD;
+            walker->PDPages.insert(nextRead >> 12);
+            walker->PDEntries.insert(nextRead);
+            break;
+        } else {
+            // 1 GB page
+            warn_once("Encountered long mode 1GB page\n");
+            entry.logBytes = 30;
+            entry.paddr = (uint64_t)pte & (mask(22) << 30);
+            entry.uncacheable = uncacheable;
+            entry.global = pte.g;
+            entry.patBit = bits(pte, 12);
+            entry.vaddr = entry.vaddr & ~((2 * (1 << 29)) - 1);
+            doTLBInsert = true;
             doEndWalk = true;
-            fault = pageFault(pte.p);
             break;
         }
-        nextState = LongPD;
-        walker->PDPages.insert(nextRead >> 12);
-        walker->PDEntries.insert(nextRead);
-        break;
       case LongPD:
         DPRINTF(PageTableWalker,
                 "Got long mode PD entry %#016x.\n", (uint64_t)pte);
@@ -395,6 +410,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             break;
         } else {
             // 2 MB page
+            warn_once("Encountered long mode 2MB page\n");
             entry.logBytes = 21;
             entry.paddr = (uint64_t)pte & (mask(31) << 21);
             entry.uncacheable = uncacheable;
@@ -456,6 +472,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
             break;
         } else {
             // 2 MB page
+            warn_once("Encountered legacy mode 2MB page\n");
             entry.logBytes = 21;
             entry.paddr = (uint64_t)pte & (mask(31) << 21);
             entry.uncacheable = uncacheable;

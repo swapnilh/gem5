@@ -50,6 +50,7 @@ namespace X86ISA {
         L2L3CacheAndL2TLB,
         APMInfo,
         LongModeAddressSize,
+        TLB1GBPageInfo = 25,
 
         /*
          * The following are defined by the spec but not yet implemented
@@ -98,7 +99,7 @@ namespace X86ISA {
                 break;
               case FamilyModelSteppingBrandFeatures:
                 result = CpuidResult(0x00020f51, 0x00000405,
-                                     0xe3d3fbff, 0x00000001);
+                                     0xe7d3fbff, 0x0000001);
                 break;
               case NameString1:
               case NameString2:
@@ -135,6 +136,9 @@ namespace X86ISA {
                 result = CpuidResult(0x00003030, 0x00000000,
                                      0x00000000, 0x00000000);
                 break;
+              case TLB1GBPageInfo:
+                result = CpuidResult(0x44000000, 0x44000000,
+                                     0x00000000, 0x00000000);
 /*            case SVMInfo:
               case TLB1GBPageInfo:
               case PerformanceInfo:*/
