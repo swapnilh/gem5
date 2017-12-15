@@ -31,7 +31,7 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
         make clean
         make
         '''
-        if variant == 1 or variant == 3:
+        if variant == 1:
             header += '''./identity_map name testing graph-app-accel-fs
             '''
         elif variant == 2:
@@ -41,26 +41,20 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
         ./apriori_paging_set_process graph-app-accel-fs
         export MALLOC_MMAP_THRESHOLD_=1
         '''
-    if huge_page == 1:
+    header += 'cd /home/swapnil\n'
+    # Allocate 24GBs in huge pages or 10GBs
+    if huge_page == 2:
         if mem_size == '32GB':
-            header += '''
-            cd /home/swapnil/
-            ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:6500
-            ./libhugetlbfs/obj/hugeadm --pool-list
-            export LD_PRELOAD=libhugetlbfs.so
-            export HUGETLB_MORECORE=yes
-            export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
-            '''
-        else:
-            header += '''
-            cd /home/swapnil/
-            ./libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:1000
-            ./libhugetlbfs/obj/hugeadm --pool-list
-            export LD_PRELOAD=libhugetlbfs.so
-            export HUGETLB_MORECORE=yes
-            export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
-            '''
+            header += './libhugetlbfs/obj/hugeadm --pool-pages-min 1GB:24\n'
+        else: #mem_size = 16GB
+            header += './libhugetlbfs/obj/hugeadm --pool-pages-min 1GB:10\n'
+    elif huge_page == 1:
+        if mem_size == '32GB':
+            header += './libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:12288\n'
+        else: #mem_size = 16GB
+            header += './libhugetlbfs/obj/hugeadm --pool-pages-min 2MB:5120\n'
 
+    header += './libhugetlbfs/obj/hugeadm --pool-list\n'
     header += '''
     cd /home/swapnil/graph_engine/
     make clean
@@ -70,10 +64,21 @@ def write_rcs_file(f, workload, database, iterations, variant, huge_page,\
     else:
         header += 'make graph-app-accel-fs CFLAGS_BC="-DBORDER_CONTROL"\n'
     header += 'dmesg --clear\n'
+    header += '''
+            export LD_PRELOAD=libhugetlbfs.so
+            export HUGETLB_MORECORE=yes
+            export LD_LIBRARY_PATH=/home/swapnil/libhugetlbfs/obj64
+    '''
     f.write(header)
-    main = './graph-app-accel-fs /home/swapnil/graph_engine/data/' +\
+    main = ''
+    if huge_page == 1:
+        main += '/home/swapnil/libhugetlbfs/obj/hugectl --heap=2MB --verbose=3'
+    elif huge_page == 2:
+        main += '/home/swapnil/libhugetlbfs/obj/hugectl --heap=1GB --verbose=3'
+
+    main += ' ./graph-app-accel-fs /home/swapnil/graph_engine/data/' +\
            database + ' ' + workload + ' ' + str(iterations) + ' ' + args\
-           + '\n'
+           + ' \n'
     f.write(main)
     footer = '''
 sync
@@ -115,19 +120,14 @@ def main(argv):
     parser.add_argument('-verbose', action="store_const", const=1,
                         dest='verbose', default=0)
     parser.add_argument('-v', action="store", dest='variant', type=int,
-                        default=0,
-                        help='Variant 0=baseline, 1=prot 2=ideal 3=bc')
+                        default=0, help='Variant 0=baseline, 1=prot 2=ideal')
     parser.add_argument('-mem-size', action="store", dest='mem_size',
                         default='16GB')
     parser.add_argument('-huge-page', action="store", dest='huge_page',
-                        type=int, default=0)
+                        type=int, default=0, help='1=2MB pages, 2=1GB pages')
     parser.add_argument('-mmu-cache', action="store", dest='mmu_cache',
                         type=int, default=0)
     parser.add_argument('-mmu-size', action="store", dest='mmu_size',
-                        default='1kB')
-    parser.add_argument('-bc-cache', action="store", dest='bc_cache',
-                        type=int, default=0)
-    parser.add_argument('-bcc-size', action="store", dest='bcc_size',
                         default='1kB')
     parser.add_argument('-debug-flags', action="store", dest='debug_flags',
                         default='')
@@ -151,8 +151,6 @@ def main(argv):
     print "Accel TLB size: " + str(options.tlb_size)
     print "MMU Caches: " + str(options.mmu_cache)
     print "MMU Cache Size: " + str(options.mmu_size)
-    print "BC Caches: " + str(options.bc_cache)
-    print "BC Cache Size: " + str(options.bcc_size)
     print "Huge (2 MB) Pages: " + str(options.huge_page)
     print "Timeout: " + str(options.timeout)
     print "Debug flags: " + options.debug_flags
@@ -183,9 +181,10 @@ def main(argv):
             # Create the logs folder, to insert rcS file and run command
             logs_dir = os.path.join(OUT_DIR, options.out_dir, 'logs_'\
                                     + workload + '_' + os.path.splitext(\
-                                    parameters['database'])[0] + '_tlb'
-                                    + str(options.tlb_size) + '_unroll'
-                                    + str(options.max_unroll))
+                                    parameters['database'])[0] + '_tlb'\
+                                    + str(options.tlb_size) + '_unroll'\
+                                    + str(options.max_unroll)) \
+                                    + '_hugepage' + str(options.huge_page)
 
             logs_dir += '_v' + str(options.variant)
             if not os.path.exists(logs_dir):
@@ -223,8 +222,6 @@ def main(argv):
                     binary = './build/X86-prot/gem5.opt'
                 elif options.variant == 2:
                     binary = './build/X86-ideal/gem5.fast '
-                elif options.variant == 3:
-                    binary = './build/X86-prot-bc/gem5.opt'
                 else:
                     print 'Unsupported Variant. Choose from 0-2!'
                     print 'Variant 0=baseline, 1=prot 2=ideal'
@@ -237,10 +234,9 @@ def main(argv):
                 + ' --tlb_size=' + str(options.tlb_size)\
                 + ' --mmu_cache=' + str(options.mmu_cache)\
                 + ' --mmu_size=' + str(options.mmu_size)\
-                + ' --bc_cache=' + str(options.bc_cache)\
-                + ' --bcc_size=' + str(options.bcc_size)\
                 + ' --algorithm=' + workload\
                 + ' --mem-size=' + str(options.mem_size)\
+                + ' --huge-page=' + str(options.huge_page)\
                 + ' --script=' + os.path.join(logs_dir, 'accel.rcS') + '\n'
             f = open(os.path.join(logs_dir, 'runscript'), 'w')
             f.write(run_cmd)
