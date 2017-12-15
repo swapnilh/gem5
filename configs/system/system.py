@@ -51,6 +51,9 @@ class MySystem(LinuxX86System):
                           default='linux-bigswap2.img',
                           help="The second disk image to mount (/dev/hdb)")
 
+    SimpleOpts.add_option("--huge-page", default="0", type="string",
+                          help="Huge Pages (0:Disabled, 1:2MB, 2:1GB pages")
+
     def __init__(self, opts, no_kvm=False):
         super(MySystem, self).__init__()
         self._opts = opts
@@ -94,6 +97,13 @@ class MySystem(LinuxX86System):
         # Options specified on the kernel command line
         boot_options = ['earlyprintk=ttyS0', 'console=ttyS0', 'lpj=7999923',
                         'root=/dev/hda1']
+        if opts.huge_page == '1':
+            boot_options.append('hugepagesz=2MB')
+            boot_options.append('default_hugepagesz=2MB')
+        elif opts.huge_page == '2':
+            boot_options.append('hugepagesz=1GB')
+            boot_options.append('default_hugepagesz=1GB')
+
         self.boot_osflags = ' '.join(boot_options)
 
         # Create the CPUs for our system.
